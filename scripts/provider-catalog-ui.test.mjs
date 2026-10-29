@@ -53,4 +53,17 @@ describe("Catálogo por provedor — navegação mobile", () => {
     assert.match(code, /flex flex-wrap gap-1/);
     assert.match(code, /Provedores \/ APIs/);
   });
+
+  it("bloqueia zoom involuntário no mobile e evita ampliação dos inputs no Safari", () => {
+    const html = readFileSync(join(root, "apps/web/index.html"), "utf8");
+    const css = readFileSync(join(root, "apps/web/src/styles/app.css"), "utf8");
+    const entry = readFileSync(join(root, "apps/web/src/main.tsx"), "utf8");
+    assert.match(html, /maximum-scale=1, user-scalable=no/);
+    assert.match(html, /viewport-fit=cover/);
+    assert.match(css, /touch-action: manipulation/);
+    assert.match(css, /@media \(hover: none\) and \(pointer: coarse\)/);
+    assert.match(css, /font-size: 16px/);
+    assert.match(entry, /gesturestart/);
+    assert.match(entry, /passive: false/);
+  });
 });
