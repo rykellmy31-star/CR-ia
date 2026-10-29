@@ -21,7 +21,7 @@ if [[ "${1:-}" == "--zip" ]]; then
     done
   fi
   echo "[update] Origem verificada: $SRC"
-  ./scripts/backup.sh
+  bash ./scripts/backup.sh
   echo "[update] Aplicando arquivos (preserva .env, data/, backups/)..."
   rsync -a --delete \
     --exclude='.env' --exclude='.env.*' --exclude='.git/' \
@@ -39,7 +39,7 @@ if [[ "${1:-}" == "--zip" ]]; then
   exit 0
 fi
 
-./scripts/backup.sh
+bash ./scripts/backup.sh
 echo "[update] Baixando nova versão..."
 git pull
 echo "[update] Reconstruindo containers..."
