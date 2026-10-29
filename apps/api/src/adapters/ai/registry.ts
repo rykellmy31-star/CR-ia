@@ -25,7 +25,7 @@ import { OpenAICompatTextAdapter, type KeyedAdapter } from "./openai-compatible.
 import { OpenRouterImageAdapter } from "./openrouter-image.js";
 import { NvidiaNimTextAdapter } from "./nvidia-nim.js";
 import { NvidiaCosmosImageAdapter, NVIDIA_COSMOS_IMAGE_ID } from "./nvidia-image.js";
-import { CloudflareFluxRestAdapter, CLOUDFLARE_FLUX_REST_ID } from "./cloudflare-flux-rest.js";
+import { CloudflareFluxRestAdapter, CLOUDFLARE_FLUX_REST_ID, CLOUDFLARE_FLUX_KLEIN_ID } from "./cloudflare-flux-rest.js";
 import { OR_DEFAULT_REFERER, type OrCatalogEntry } from "../../services/openrouter.js";
 import { AnthropicTextAdapter } from "./anthropic.js";
 import { GoogleTextAdapter } from "./google.js";
@@ -222,7 +222,7 @@ export class ModelRegistry {
       : "mock-cr-1";
     this.defaultImageModel =
       env.IMAGE_PROVIDER === "cloudflare-rest"
-        ? CLOUDFLARE_FLUX_REST_ID
+        ? CLOUDFLARE_FLUX_KLEIN_ID
         : env.IMAGE_PROVIDER === "workers-ai"
         ? (env.WORKERS_AI_IMAGE_MODEL ?? "@cf/black-forest-labs/flux-1-schnell")
         : env.IMAGE_PROVIDER === "pollinations"
@@ -416,7 +416,7 @@ export class ModelRegistry {
     const orIds = orKeyed && this.orImage ? this.orImage.models() : [];
     const preferred =
       this.env.IMAGE_PROVIDER === "cloudflare-rest"
-        ? CLOUDFLARE_FLUX_REST_ID
+        ? CLOUDFLARE_FLUX_KLEIN_ID
         : this.env.IMAGE_PROVIDER === "workers-ai"
         ? (this.env.WORKERS_AI_IMAGE_MODEL ?? "@cf/black-forest-labs/flux-1-schnell")
         : this.env.IMAGE_PROVIDER === "pollinations"
@@ -431,7 +431,7 @@ export class ModelRegistry {
     // O SVG é fallback explícito de demonstração — nunca se passa por IA real.
     const candidates = [
       ...(this.defaultImageModel ? [this.defaultImageModel] : []),
-      preferred, CLOUDFLARE_FLUX_REST_ID, ...orIds, "flux.1-schnell", POLLINATIONS_MODEL_ID, "local-svg-1",
+      preferred, CLOUDFLARE_FLUX_KLEIN_ID, CLOUDFLARE_FLUX_REST_ID, ...orIds, "flux.1-schnell", POLLINATIONS_MODEL_ID, "local-svg-1",
     ].filter((id, i, arr) => arr.indexOf(id) === i);
     const pingCache = new Map<ImageAdapter, boolean>();
     for (const id of candidates) {

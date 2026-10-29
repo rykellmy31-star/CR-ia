@@ -119,6 +119,14 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     requirements: "Suba o perfil: docker compose --profile ai up -d",
   },
   {
+    id: "cloudflare-flux-2-klein-4b", label: "FLUX.2 Klein 4B (Cloudflare · recomendado)", provider: "workers-ai",
+    capabilities: ["image-gen"],
+    description: "Modelo mais recente com orientação e tamanho da imagem configuráveis; bom para imagens fiéis ao pedido. Usa a cota Workers AI.",
+    license: "Black Forest Labs + termos Cloudflare Workers AI (confira a licença antes de uso comercial)",
+    local: false, cost: "free-tier", limits: "Usa Neurons da conta Cloudflare; gratuitos até o limite do plano.",
+    requirements: "Configure CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_AI_API_TOKEN na VPS.",
+  },
+  {
     id: "cloudflare-flux-1-schnell", label: "FLUX.1 Schnell (Cloudflare API)", provider: "workers-ai",
     capabilities: ["image-gen"],
     description: "Geração real via Cloudflare Workers AI REST na VPS; usa franquia e limites da conta, sem GPU local.",
