@@ -17,6 +17,15 @@ describe("Cloudflare FLUX REST", () => {
     expect(entry?.status).toBe("installed");
   });
 
+  it("auto selects a real Cloudflare image model rather than the SVG demo", async () => {
+    const registry = createRegistry({
+      JWT_SECRET: "test", CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+      CLOUDFLARE_AI_API_TOKEN: "test-key", BLOCK_PAID_PROVIDERS: "true",
+      IMAGE_PROVIDER: "openrouter",
+    });
+    expect(await registry.autoSelectImage()).toBe(CLOUDFLARE_FLUX_KLEIN_ID);
+  });
+
   it("sends authenticated JSON, decodes returned image bytes", async () => {
     const image = Buffer.concat([Buffer.from([0xff,0xd8,0xff,0xe0]), Buffer.alloc(60)]);
     const fetchFn = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({
