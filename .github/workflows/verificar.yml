@@ -27,5 +27,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Testes dos scripts
         run: node --test scripts/provider-catalog-ui.test.mjs scripts/reinstalar-limpo.test.mjs scripts/bootstrap-github.test.mjs scripts/cria-menu.test.mjs scripts/backup-sh.test.mjs
+      - name: Testar geração FLUX Cloudflare
+        run: npm test --workspace apps/api -- cloudflare-flux-rest.test.ts
       - name: Compilar
         run: npm run build
