@@ -42,7 +42,7 @@ export function AdminView({ models, refreshModels, onOpenSidebar }: {
   const [audit, setAudit] = useState<AuditLog[]>([]);
   const [integrations, setIntegrations] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"models" | "providers" | "keys" | "search" | "users" | "usage" | "logs" | "system" | "updates">("models");
+  const [tab, setTab] = useState<"models" | "providers" | "keys" | "search" | "users" | "usage" | "logs" | "system" | "updates">("providers");
   const [usage, setUsage] = useState<{
     limits: { chat: number; images: number };
     todayUsage: Record<string, { email: string; chat: number; image: number; transcription: number }>;
@@ -270,11 +270,11 @@ export function AdminView({ models, refreshModels, onOpenSidebar }: {
         <button onClick={() => void load()} className="text-sm rounded-lg border px-2 py-1">↻ Atualizar</button>
       </header>
 
-      <div className="flex gap-1 px-3 pt-2 border-b border-zinc-200 dark:border-zinc-800 text-sm overflow-x-auto">
+      <div className="flex flex-wrap gap-1 px-3 pt-2 pb-1 border-b border-zinc-200 dark:border-zinc-800 text-sm">
         {(["models", "providers", "keys", "search", "users", "usage", "logs", "system", "updates"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1.5 rounded-t-lg font-medium whitespace-nowrap ${tab === t ? "bg-indigo-600 text-white" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
-            {t === "models" ? "🧠 Modelos" : t === "providers" ? "🤖 Provedores de IA" : t === "keys" ? "🔑 Credenciais" : t === "search" ? "🌐 Pesquisa" : t === "users" ? "👥 Usuários" : t === "usage" ? "📊 Uso e cotas" : t === "logs" ? "📋 Logs" : t === "updates" ? "🔄 Atualizações" : "🖥 Sistema"}
+            {t === "models" ? "🧠 Modelos" : t === "providers" ? "🏢 Provedores / APIs" : t === "keys" ? "🔑 Credenciais" : t === "search" ? "🌐 Pesquisa" : t === "users" ? "👥 Usuários" : t === "usage" ? "📊 Uso e cotas" : t === "logs" ? "📋 Logs" : t === "updates" ? "🔄 Atualizações" : "🖥 Sistema"}
           </button>
         ))}
       </div>
