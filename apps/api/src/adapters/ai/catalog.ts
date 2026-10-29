@@ -118,6 +118,14 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     local: true, cost: "free", sizeNote: "~2 GB RAM",
     requirements: "Suba o perfil: docker compose --profile ai up -d",
   },
+  {
+    id: "cloudflare-flux-1-schnell", label: "FLUX.1 Schnell (Cloudflare API)", provider: "workers-ai",
+    capabilities: ["image-gen"],
+    description: "Geração real via Cloudflare Workers AI REST na VPS; usa franquia e limites da conta, sem GPU local.",
+    license: "FLUX.1 Schnell (Apache-2.0) + termos Cloudflare Workers AI",
+    local: false, cost: "free-tier", limits: "Cota diária Workers AI; excedente bloqueado no plano gratuito",
+    requirements: "Configure CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_AI_API_TOKEN na VPS.",
+  },
   // ---------- Imagem externa gratuita ----------
   {
     id: "pollinations-flux", label: "FLUX real (nuvem gratuita)", provider: "pollinations",

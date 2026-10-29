@@ -28,6 +28,8 @@ export interface Env {
   OLLAMA_TEXT_MODELS?: string;
   IMAGE_PROVIDER?: string;
   WORKERS_AI_IMAGE_MODEL?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_AI_API_TOKEN?: string;
   ENABLE_POLLINATIONS?: string;
   POLLINATIONS_TEXT_MODEL?: string;
   POLLINATIONS_IMAGE_MODEL?: string;

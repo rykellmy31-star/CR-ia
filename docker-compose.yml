@@ -113,6 +113,8 @@ services:
       EXTERNAL_GPU_URL: ${EXTERNAL_GPU_URL:-}
       EXTERNAL_GPU_API_KEY: ${EXTERNAL_GPU_API_KEY:-}
       WORKERS_AI_IMAGE_MODEL: ${WORKERS_AI_IMAGE_MODEL:-@cf/black-forest-labs/flux-1-schnell}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      CLOUDFLARE_AI_API_TOKEN: ${CLOUDFLARE_AI_API_TOKEN:-}
       # Voz + busca em documentos (serviço ai-local, perfil "ai"):
       AI_LOCAL_URL: ${AI_LOCAL_URL:-http://ai-local:8001}
       # Busca web (SearXNG próprio, perfil "search"; vazio = desligado):
