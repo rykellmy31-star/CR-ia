@@ -58,6 +58,6 @@ describe("Cloudflare FLUX REST", () => {
 
   it("refuses API limits without silently falling back to paid inference", async () => {
     const adapter = new CloudflareFluxRestAdapter("a".repeat(32), "secret", async () => new Response("", { status: 429 }));
-    await expect(adapter.generate(opts)).rejects.toThrow("Franquia");
+    await expect(adapter.generate(opts)).rejects.toThrow("franquia");
   });
 });
