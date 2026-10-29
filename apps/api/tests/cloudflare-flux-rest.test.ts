@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { CloudflareFluxRestAdapter, CLOUDFLARE_FLUX_REST_ID, CLOUDFLARE_FLUX_KLEIN_ID } from "../src/adapters/ai/cloudflare-flux-rest.js";
+import { CloudflareFluxRestAdapter, CLOUDFLARE_FLUX_REST_ID, CLOUDFLARE_FLUX_KLEIN_ID, CLOUDFLARE_PHOENIX_ID } from "../src/adapters/ai/cloudflare-flux-rest.js";
 import { createRegistry } from "../src/adapters/ai/registry.js";
 
 const opts = { model: CLOUDFLARE_FLUX_REST_ID, prompt: "Blue car", format: "1:1" as const, width: 512, height: 512 };
@@ -54,6 +54,25 @@ describe("Cloudflare FLUX REST", () => {
     expect(form.get("height")).toBe("768");
     expect(form.get("seed")).toBe("123");
     expect(form.get("guidance")).toBe("5");
+  });
+
+  it("sends prompt, dimensions, negative prompt and guidance to Leonardo Phoenix", async () => {
+    const image = Buffer.concat([Buffer.from([0xff,0xd8,0xff,0xe0]), Buffer.alloc(60)]);
+    const fetchFn = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({
+      success: true, result: { image: image.toString("base64") },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const adapter = new CloudflareFluxRestAdapter("a".repeat(32), "secret", fetchFn as typeof fetch);
+    const result = await adapter.generate({ ...opts, model: CLOUDFLARE_PHOENIX_ID, negativePrompt: "people", width: 768, height: 1024 });
+    expect(result.mime).toBe("image/jpeg");
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toContain("/ai/run/@cf/leonardo/phoenix-1.0");
+    const body = JSON.parse(String(init?.body));
+    expect(body.prompt).toBe("Blue car");
+    expect(body.negative_prompt).toBe("people");
+    expect(body.guidance).toBe(7);
+    expect(body.num_steps).toBe(30);
+    expect(body.width).toBe(768);
+    expect(body.height).toBe(1024);
   });
 
   it("refuses API limits without silently falling back to paid inference", async () => {
