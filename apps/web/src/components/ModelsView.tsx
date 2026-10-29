@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { ModelInfo, ModelStatus } from "@cr-ia/shared";
 import { ApiError, post } from "../lib/api";
+import { ProviderCatalogPicker } from "./ProviderCatalogPicker";
 
 interface Props {
   models: ModelInfo[];
@@ -24,6 +25,7 @@ export function ModelsView(p: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<{ model: string; text: string; ok: boolean } | null>(null);
   const [error, setError] = useState("");
+  const [provider, setProvider] = useState("all");
   const [filter, setFilter] = useState<"all" | "chat" | "image" | "voice">("all");
   const [costF, setCostF] = useState<"all" | "free" | "paid">("all");
   const [statusF, setStatusF] = useState<"all" | "ready" | "nokey" | "off">("all");
@@ -64,7 +66,7 @@ export function ModelsView(p: Props) {
     }
   };
 
-  const visible = p.models.filter((m) => {
+  const visible = p.models.filter((m) => provider === "all" || m.provider === provider).filter((m) => {
     if (filter === "chat") return m.capabilities.some((c) => ["chat", "reasoning", "code"].includes(c));
     if (filter === "image") return m.capabilities.some((c) => ["image-gen", "image-edit"].includes(c));
     if (filter === "voice") return m.capabilities.some((c) => ["transcription", "embeddings"].includes(c));
@@ -108,8 +110,10 @@ export function ModelsView(p: Props) {
       <div className="flex-1 overflow-y-auto p-3">
         <div className="max-w-5xl mx-auto space-y-2">
           {error && <p className="text-sm text-red-600">⚠️ {error}</p>}
+          <ProviderCatalogPicker models={p.models} selected={provider} onSelect={setProvider}
+            isAdmin={p.isAdmin} refreshModels={p.refreshModels} />
           <p className="text-xs text-zinc-500">
-            Estado verificado agora no servidor (ping real). 🧪 executa uma inferência de verdade.
+            {provider === "all" ? "Todos os provedores" : "Catálogo: " + provider} · {visible.length} modelo(s). Estado verificado agora no servidor (ping real). 🧪 executa uma inferência de verdade.
             Modelos pagos ficam bloqueados por padrão — o admin libera em cada caso.
             🔑 = API por chave ainda não configurada (Administração → Credenciais).
           </p>
@@ -172,7 +176,7 @@ export function ModelsView(p: Props) {
               </div>
             );
           })}
-          {visible.length === 0 && <p className="text-sm text-zinc-500 text-center">Nenhum modelo nesta categoria.</p>}
+          {visible.length === 0 && <p className="text-sm text-zinc-500 text-center">Nenhum modelo deste provedor disponível no catálogo atual. Configure a API ou consulte/autorize modelos no painel acima.</p>}
         </div>
       </div>
     </div>
