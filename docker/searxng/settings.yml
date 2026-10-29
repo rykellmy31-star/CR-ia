@@ -1,0 +1,18 @@
+# CR IA — SearXNG local (perfil `search`).
+# Essencial: habilita o formato JSON (desligado por padrão no upstream),
+# sem o qual a API não consegue consumir os resultados.
+# Serviço só em 127.0.0.1; secret_key é exigência de boot do SearXNG
+# (cookies de sessão; a API usa JSON sem login). Para trocar, edite aqui
+# e recrie o container: docker compose --profile search up -d --force-recreate searxng
+general:
+  instance_name: "CR IA (busca local)"
+search:
+  formats:
+    - html
+    - json
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "troque-este-segredo-no-deploy-suporte-loopback-only"
+  limiter: false
+  image_proxy: false

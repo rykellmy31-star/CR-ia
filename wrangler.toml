@@ -1,0 +1,65 @@
+# =====================================================================
+# CR IA — Cloudflare Workers (API + frontend estático + Workers AI + D1 + R2)
+# Deploy:
+#   npm install -g wrangler
+#   wrangler login
+#   wrangler d1 create cr-ia-db            # anote o database_id abaixo
+#   wrangler d1 execute cr-ia-db --file=apps/api/migrations/0001_init_d1.sql
+#   wrangler r2 bucket create cr-ia-arquivos
+#   wrangler kv:namespace create cr-ia-sessions   # opcional (sessões)
+#   wrangler secret put JWT_SECRET
+#   wrangler secret put GITHUB_TOKEN              # opcional
+#   npm run build -w apps/web && npx wrangler deploy
+# =====================================================================
+
+name = "cr-ia"
+main = "apps/api/src/worker.ts"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Frontend (build do Vite) servido como assets estáticos pelo próprio Worker
+[assets]
+directory = "apps/web/dist"
+not_found_handling = "single-page-application"
+
+[vars]
+NODE_ENV = "production"
+DB_DRIVER = "d1"
+STORAGE_DRIVER = "r2"
+CHAT_PROVIDER = "workers-ai"
+IMAGE_PROVIDER = "workers-ai"
+# Na CF o FLUX é nativo; provedor externo fica desligado por padrão (privacidade).
+ENABLE_POLLINATIONS = "false"
+WORKERS_AI_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell"
+BLOCK_PAID_PROVIDERS = "true"
+GITHUB_REQUIRE_APPROVAL = "true"
+GITHUB_ALLOWED_REPOS = "rykellmy31-star/gestor-ponto-multiempresa,rykellmy31-star/GESTOR-BARBEARIA,rykellmy31-star/Site-farmacia_paguePouco,rykellmy31-star/CATALOGO-Multilojas"
+
+# Workers AI — inferência (modelos @cf/*). Gratuidades e limites variam por plano.
+[ai]
+binding = "AI"
+
+# D1 — banco relacional (SQLite gerenciado)
+[[d1_databases]]
+binding = "DB"
+database_name = "cr-ia-db"
+database_id = "SUBSTITUIR_PELO_DATABASE_ID"
+
+# R2 — arquivos (uploads, imagens geradas, documentos)
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "cr-ia-arquivos"
+
+# Filas — tarefas assíncronas (alternativa ao worker da VPS)
+[[queues.producers]]
+binding = "TASKS"
+queue = "cr-ia-tasks"
+
+[[queues.consumers]]
+queue = "cr-ia-tasks"
+max_batch_size = 5
+max_retries = 3
+
+# Observabilidade
+[observability.logs]
+enabled = true

@@ -1,0 +1,61 @@
+CR IA v0.1.0 — RELATÓRIO DE TESTES
+Data: 2026-10-22T17:35:55Z
+Node: v20.20.2 | npm: 10.8.2
+==========================================
+
+### 1. Testes automatizados (vitest)
+ ✓ tests/api.test.ts > API HTTP > health
+ ✓ tests/api.test.ts > API HTTP > login rejeita senha errada
+ ✓ tests/api.test.ts > API HTTP > rotas protegidas exigem token
+ ✓ tests/api.test.ts > API HTTP > chat cria conversa, responde e persiste histórico
+ ✓ tests/api.test.ts > API HTTP > modelos listam catálogo real
+ ✓ tests/api.test.ts > API HTTP > guest não acessa admin
+ ✓ tests/api.test.ts > API HTTP > imagens: gera SVG, lista na biblioteca
+ ✓ tests/api.test.ts > API HTTP > tarefas: cria echo e aprova fluxo
+ ✓ tests/api.test.ts > API HTTP > upload valida tipo e lê texto
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > CRUD de usuários
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > conversas + mensagens + busca + exclusão em cascata
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > isolamento entre usuários
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > fila de tarefas: claim é atômico por instância
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > uso + auditoria + settings
+ ✓ tests/registry.test.ts > ModelRegistry > lista modelos com mock sempre disponível
+ ✓ tests/registry.test.ts > ModelRegistry > auto-seleção cai no mock quando nada mais existe
+ ✓ tests/registry.test.ts > ModelRegistry > política BLOCK_PAID_PROVIDERS impede modelos pagos
+ ✓ tests/registry.test.ts > ModelRegistry > admin pode desabilitar modelos
+ ✓ tests/mock-ai.test.ts > MockTextAdapter > responde em PT-BR sem rede
+ ✓ tests/mock-ai.test.ts > MockTextAdapter > gera ideia de campanha
+ ✓ tests/mock-ai.test.ts > MockSvgImageAdapter > gera SVG válido nas dimensões pedidas
+ ✓ tests/mock-ai.test.ts > MockSvgImageAdapter > renderSvgArt varia com o prompt
+ ✓ tests/mock-ai.test.ts > estimateTokens > estima ~4 chars/token
+ ✓ tests/crypto.test.ts > crypto > hash + verify de senha
+ ✓ tests/crypto.test.ts > crypto > JWT assina e verifica
+ ✓ tests/crypto.test.ts > crypto > tokens opacos são únicos
+ Test Files  5 passed (5)
+      Tests  26 passed (26)
+
+### 2. Builds de produção (tsc + vite)
+
+
+api: BUILD OK
+
+worker: BUILD OK
+✓ built in 1.16s
+
+### 3. Validações extras
+scripts bash: SYNTAX OK
+docker-compose.yml: YAML OK
+
+### 4. Teste funcional ao vivo (servidores reais, 22/10/2026)
+API (dist compilado) + worker executados; seed criou admin+guest; chamadas curl:
+  [OK] GET  /api/health .................... status ok, drivers json/local
+  [OK] POST /api/auth/login (admin+guest) .. JWT 265 chars, papéis corretos
+  [OK] POST /api/chat/completions .......... conversa criada, resposta mock-cr-1 PT-BR
+  [OK] GET  /api/models .................... 6 modelos, disponibilidade honesta (🟢 mock/svg, 🔴 @cf/* fora da CF)
+  [OK] POST /api/images/generate (9:16) .... 768x1365, URL de download autenticado
+  [OK] POST /api/files + GET /read ......... upload txt + leitura exata do conteúdo
+  [OK] POST /api/tasks (chat) .............. pending -> worker executou -> done (attempts=1, resultado real)
+  [OK] POST /api/tasks (image-batch) ....... done com 2 imagens; biblioteca total 3
+  [OK] GET  /api/admin/stats ............... users=2, chamadas_ia contabilizadas
+  [OK] POST /api/chat/stream (SSE) ......... eventos meta/delta/done progressivos
+  Correção aplicada durante o smoke: JsonFileAdapter.sync() — sincronização
+  multiprocesso (API + worker enxergam o mesmo banco JSON). Re-testado: OK.

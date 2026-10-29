@@ -1,0 +1,11 @@
+CR IA — REPOSITÓRIO PUBLICO + INSTALADOR GITHUB
+
+1. Crie repo PUBLICO vazio: rykellmy31-star/CR-IA.
+2. Extraia este ZIP e publique os arquivos no GitHub (consulte docs/GITHUB-INSTALADOR-VPS.md).
+3. Gere SEU token Fine-grained GitHub com Contents: Read-only, somente CR-IA.
+4. Em VPS Ubuntu NOVA, envie apenas scripts/bootstrap-github.sh e execute via sudo.
+5. O instalador pedirá o token e a senha Superadmin sem exibir esses valores.
+6. Não use o bootstrap na sua VPS atual; ela já contém dados e está protegida contra sobrescrita.
+
+ATENÇÃO: pacote preparado para testes; ainda não homologado em uma VPS limpa.
+As chaves de OpenRouter/NVIDIA, dados de usuários e banco ficam fora do GitHub.

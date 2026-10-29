@@ -1,0 +1,415 @@
+# =====================================================================
+# CR IA v0.2.0 — Docker Compose para a VPS PRONTA (OVHcloud Ubuntu 26.04)
+# Perfil de referência: 6 vCores · 12 GB RAM · 100 GB SSD.
+#
+# Tudo publicado SOMENTE em 127.0.0.1 (loopback). O acesso público chega
+# via Cloudflare Tunnel já instalado (CRIA OVH, preservado): ia.crjornada.com -> 127.0.0.1:3000 (WEB_PORT).
+# NADA aqui abre porta pública, instala Docker ou toca em UFW/SSH/Tunnel.
+# Ver docs/TUNEL-CLOUDFLARE.md e scripts/deploy-vps-pronta.sh.
+#
+# Uso:
+#   ./scripts/deploy-vps-pronta.sh --check    # diagnostica (altera nada)
+#   ./scripts/deploy-vps-pronta.sh --apply    # instala/atualiza
+#
+# IA local na CPU (12 GB): qwen3:4b (padrão, ~2.5 GB) ou qwen3:8b (~5 GB):
+#   docker compose --profile ollama up -d
+#   ./scripts/ollama-setup.sh
+#
+# Voz + busca em documentos (Whisper + embeddings locais, perfil "ai"):
+#   docker compose --profile ai up -d
+#
+# Busca web própria (SearXNG, perfil "search"):
+#   docker compose --profile search up -d
+#
+# Modelos pesados (30B+, Qwen-Image, FLUX local): GPU externa sob demanda.
+# Ver docs/GPU-EXTERNA.md (basta apontar OLLAMA_URL/EXTERNAL_GPU_URL, sem rebuild).
+#
+# RAM (limites; VPS de referência = 12 GB) — NÃO ative todos os perfis juntos:
+#   base (db+api+web+worker) .... ~3.0 GB    (sempre ligada)
+#   perfil ollama ................ +7.0 GB    (LLM local; ALTERNATIVA ao "ai")
+#   perfil ai .................... +3.0 GB    (voz+docs; ALTERNATIVA ao "ollama")
+#   perfil search ................ +1.0 GB    (SearXNG próprio; combina com tudo)
+#   base+ollama+search ≈ 11 GB OK | base+ai+search ≈ 7 GB OK
+#   base + ollama + ai + search ≈ 14 GB > 12 GB — NÃO FAÇA (OOM killer).
+# Regra: "ollama" e "ai" são ALTERNATIVAS (escolha 1). "search" combina com
+# qualquer uma. Limites por serviço em deploy.resources (fail-safe).
+# =====================================================================
+
+name: cr-ia
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 768M }
+        reservations: { memory: 256M }
+    environment:
+      POSTGRES_USER: cr_ia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: cr_ia
+      TZ: ${TZ:-America/Sao_Paulo}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cr_ia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [cr-ia]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 1G }
+        reservations: { memory: 256M }
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-America/Sao_Paulo}
+      PORT: 8787
+      # Obrigatórios (o compose falha de propósito se faltarem):
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env (openssl rand -hex 32)}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@cr-ia.local}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrador}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env (8+ caracteres, diferente do padrão)}
+      GUEST_EMAIL: ${GUEST_EMAIL:-convidada@cr-ia.local}
+      GUEST_NAME: ${GUEST_NAME:-Usuária Convidada}
+      GUEST_PASSWORD: ${GUEST_PASSWORD:?defina GUEST_PASSWORD no .env (8+ caracteres, diferente do padrão)}
+      # Banco/arquivos:
+      DB_DRIVER: postgres
+      DATABASE_URL: postgres://cr_ia:${POSTGRES_PASSWORD:?}@db:5432/cr_ia
+      STORAGE_DRIVER: local
+      LOCAL_STORAGE_DIR: /app/data/uploads
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      ALLOWED_UPLOAD_MIME: ${ALLOWED_UPLOAD_MIME:-text/plain,text/markdown,text/csv,application/json,image/png,image/jpeg,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}
+      # Auth:
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      BCRYPT_COST: ${BCRYPT_COST:-10}
+      # E-mail de recuperação de senha (SMTP do cliente; vazio = link no log em dev):
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-CR IA <nao-responda@crjornada.com>}
+      # IA texto:
+      CHAT_PROVIDER: ${CHAT_PROVIDER:-ollama}
+      AUTO_MODEL_SELECT: ${AUTO_MODEL_SELECT:-true}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_TEXT_MODELS: ${OLLAMA_TEXT_MODELS:-qwen3:4b}
+      # IA imagem:
+      IMAGE_PROVIDER: ${IMAGE_PROVIDER:-pollinations}
+      ENABLE_POLLINATIONS: ${ENABLE_POLLINATIONS:-true}
+      POLLINATIONS_TEXT_MODEL: ${POLLINATIONS_TEXT_MODEL:-openai}
+      POLLINATIONS_IMAGE_MODEL: ${POLLINATIONS_IMAGE_MODEL:-flux}
+      POLLINATIONS_API_KEY: ${POLLINATIONS_API_KEY:-}
+      EXTERNAL_GPU_URL: ${EXTERNAL_GPU_URL:-}
+      EXTERNAL_GPU_API_KEY: ${EXTERNAL_GPU_API_KEY:-}
+      WORKERS_AI_IMAGE_MODEL: ${WORKERS_AI_IMAGE_MODEL:-@cf/black-forest-labs/flux-1-schnell}
+      # Voz + busca em documentos (serviço ai-local, perfil "ai"):
+      AI_LOCAL_URL: ${AI_LOCAL_URL:-http://ai-local:8001}
+      # Busca web (SearXNG próprio, perfil "search"; vazio = desligado):
+      SEARXNG_URL: ${SEARXNG_URL:-}
+      WEB_SEARCH_PROVIDER: ${WEB_SEARCH_PROVIDER:-auto}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      TAVILY_BASE_URL: ${TAVILY_BASE_URL:-}
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      BRAVE_BASE_URL: ${BRAVE_BASE_URL:-}
+      GOOGLE_PSE_KEY: ${GOOGLE_PSE_KEY:-}
+      GOOGLE_PSE_CX: ${GOOGLE_PSE_CX:-}
+      GOOGLE_PSE_BASE_URL: ${GOOGLE_PSE_BASE_URL:-}
+      # Cofre de credenciais (OBRIGATÓRIO: sem ele o painel não guarda chaves):
+      CREDENTIALS_SECRET: ${CREDENTIALS_SECRET:?defina CREDENTIALS_SECRET no .env (openssl rand -hex 32)}
+      # IAs gratuitas com chave (free-tier, $0 com cotas; vazio = desligado):
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODELS: ${GROQ_MODELS:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
+      OPENROUTER_REFERER: ${OPENROUTER_REFERER:-https://ia.crjornada.com}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_MODELS: ${NVIDIA_MODELS:-}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      # Central de Atualizações: HMAC dos ZIPs (vazio = só ZIP aceito à mão):
+      UPDATES_MANIFEST_URL: ${UPDATES_MANIFEST_URL:-}
+      UPDATE_SIGNING_PUBLIC_KEY: ${UPDATE_SIGNING_PUBLIC_KEY:-}
+      UPDATES_DIR: /app/data/updates
+      # HMAC que autentica aprovações/rollbacks p/ o updater (obrigatório: sem
+      # ele na API, aprovar retorna erro; gerado pelo instalador no .env):
+      UPDATER_QUEUE_SECRET: ${UPDATER_QUEUE_SECRET:?defina UPDATER_QUEUE_SECRET no .env (openssl rand -hex 32)}
+      # Agente desenvolvedor (isolado; escrita e merge exigem aprovação):
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_ALLOWED_REPOS: ${GITHUB_ALLOWED_REPOS:-rykellmy31-star/gestor-ponto-multiempresa,rykellmy31-star/GESTOR-BARBEARIA,rykellmy31-star/Site-farmacia_paguePouco,rykellmy31-star/CATALOGO-Multilojas}
+      GITHUB_REQUIRE_APPROVAL: "true"
+      AGENT_REQUIRE_APPROVAL: ${AGENT_REQUIRE_APPROVAL:-true}
+      # Limites e custos:
+      BLOCK_PAID_PROVIDERS: "true"
+      DAILY_LIMIT_CHAT: ${DAILY_LIMIT_CHAT:-200}
+      DAILY_LIMIT_IMAGES: ${DAILY_LIMIT_IMAGES:-50}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://ia.crjornada.com}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-https://ia.crjornada.com/api}
+    volumes:
+      - apidata:/app/data
+    ports:
+      - "127.0.0.1:${API_PORT:-8787}:8787"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8787/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks: [cr-ia]
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1G }
+        reservations: { memory: 256M }
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-America/Sao_Paulo}
+      # O worker acessa a MESMA fila no MESMO banco da API:
+      DB_DRIVER: postgres
+      DATABASE_URL: postgres://cr_ia:${POSTGRES_PASSWORD:?}@db:5432/cr_ia
+      STORAGE_DRIVER: local
+      LOCAL_STORAGE_DIR: /app/data/uploads
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env}
+      CREDENTIALS_SECRET: ${CREDENTIALS_SECRET:?defina CREDENTIALS_SECRET no .env (openssl rand -hex 32)}
+      # Mesmos provedores de IA da API (fila executa chat/imagem de verdade):
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_REFERER: ${OPENROUTER_REFERER:-https://ia.crjornada.com}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_MODELS: ${NVIDIA_MODELS:-}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      CHAT_PROVIDER: ${CHAT_PROVIDER:-ollama}
+      AUTO_MODEL_SELECT: ${AUTO_MODEL_SELECT:-true}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_TEXT_MODELS: ${OLLAMA_TEXT_MODELS:-qwen3:4b}
+      IMAGE_PROVIDER: ${IMAGE_PROVIDER:-pollinations}
+      ENABLE_POLLINATIONS: ${ENABLE_POLLINATIONS:-true}
+      POLLINATIONS_TEXT_MODEL: ${POLLINATIONS_TEXT_MODEL:-openai}
+      POLLINATIONS_IMAGE_MODEL: ${POLLINATIONS_IMAGE_MODEL:-flux}
+      POLLINATIONS_API_KEY: ${POLLINATIONS_API_KEY:-}
+      BLOCK_PAID_PROVIDERS: "true"
+      AI_LOCAL_URL: ${AI_LOCAL_URL:-http://ai-local:8001}
+      UPDATES_MANIFEST_URL: ${UPDATES_MANIFEST_URL:-}
+      SEARXNG_URL: ${SEARXNG_URL:-}
+      # Agente desenvolvedor: clones isolados em /agentwork (NUNCA no app):
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_ALLOWED_REPOS: ${GITHUB_ALLOWED_REPOS:-rykellmy31-star/gestor-ponto-multiempresa,rykellmy31-star/GESTOR-BARBEARIA,rykellmy31-star/Site-farmacia_paguePouco,rykellmy31-star/CATALOGO-Multilojas}
+      GITHUB_REQUIRE_APPROVAL: "true"
+      AGENT_WORK_DIR: /agentwork
+      AGENT_REQUIRE_APPROVAL: ${AGENT_REQUIRE_APPROVAL:-true}
+      # Testes do agente em contêineres descartáveis (docker|host|auto):
+      AGENT_RUNNER: ${AGENT_RUNNER:-auto}
+      AGENT_ALLOW_HOST_EXEC: ${AGENT_ALLOW_HOST_EXEC:-false}
+      AGENT_SANDBOX_NETWORK: ${AGENT_SANDBOX_NETWORK:-bridge}
+      AGENT_MAX_PARALLEL_RUNS: ${AGENT_MAX_PARALLEL_RUNS:-1}
+      AGENT_RUN_TIMEOUT_MIN: ${AGENT_RUN_TIMEOUT_MIN:-20}
+      WORKER_POLL_MS: ${WORKER_POLL_MS:-5000}
+    volumes:
+      - apidata:/app/data
+      - agentwork:/agentwork
+      # Testes isolados do agente (item 3 da auditoria): o worker cria
+      # contêineres DESCARTÁVEIS (docker run --rm) só com o clone do repo.
+      # ATENÇÃO: o socket Docker equivale a root no host — monte SOMENTE se
+      # confiar no isolamento; sem ele, o agente registra "docker
+      # indisponível" e não executa testes no host (a menos que
+      # AGENT_ALLOW_HOST_EXEC=true, não recomendado).
+      #- /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pidof node >/dev/null || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [cr-ia]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # "" = mesma origem: o Nginx faz proxy de /api/* para o backend.
+        # Funciona no domínio e no celular sem CORS. Só informe URL absoluta
+        # se a API estiver em outro domínio (exige CORS_ORIGINS ajustado).
+        VITE_API_URL: ${WEB_API_URL:-}
+    restart: unless-stopped
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+    ports:
+      # Único ponto de entrada — o Tunnel CRIA OVH aponta para 127.0.0.1:3000.
+      - "127.0.0.1:${WEB_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks: [cr-ia]
+
+  # Serviço SEPARADO de aplicação de updates (§4): sem portas, sem acesso
+  # externo. A API valida uploads e enfileira; este serviço aplica.
+  # DESATIVADO por padrão na homologação: só sobe com --profile updates.
+  # O chat/API funcionam normalmente sem ele (pedidos só acumulam na fila).
+  # Ativar (após ler docs/UPDATES.md): docker compose --profile updates up -d
+  updater:
+    build:
+      context: .
+      dockerfile: apps/updater/Dockerfile
+    profiles: [updates]
+    restart: unless-stopped
+    # Privilégios mínimos: o socket Docker é inerentemente poderoso, então o
+    # container perde tudo o mais (sem caps, sem setuid, FS raiz só-leitura).
+    # Sem ports: age só pela fila em /app/data/updates/queue.
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      api:
+        condition: service_started
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 512M }
+        reservations: { memory: 128M }
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-America/Sao_Paulo}
+      APP_DIR: /app
+      UPDATES_DIR: /app/data/updates
+      HEALTH_URL: http://web/api/health
+      UPDATER_PROJECT: cr-ia
+      UPDATER_QUEUE_SECRET: ${UPDATER_QUEUE_SECRET:?defina UPDATER_QUEUE_SECRET no .env (openssl rand -hex 32)}
+    volumes:
+      - .:/app:rw
+      - apidata:/app/data:rw
+      # Socket Docker RESTRITO a este serviço (nunca na API pública):
+      # só o updater reconstrói containers. Sem ele, updates param na fila.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [cr-ia]
+
+  # Perfil opcional: Ollama local na CPU da VPS.
+  # 12 GB RAM: qwen3:4b (~2.5 GB) é o padrão seguro; qwen3:8b (~5 GB) também cabe.
+  # Limite de 7 GB protege o resto do sistema. Modelos 14B+ → GPU externa.
+  ollama:
+    image: ollama/ollama:0.11
+    restart: unless-stopped
+    profiles: [ollama]
+    deploy:
+      resources:
+        limits: { cpus: "4", memory: 7G }
+        reservations: { memory: 2G }
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_KEEP_ALIVE: 15m
+      OLLAMA_NUM_PARALLEL: 1
+      OLLAMA_MAX_LOADED_MODELS: 1
+      TZ: ${TZ:-America/Sao_Paulo}
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks: [cr-ia]
+    # GPU NVIDIA local (se a VPS tiver): descomente com NVIDIA Container Toolkit.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Perfil opcional "ai": transcrição (Whisper) + embeddings locais (CPU).
+  # Sobe junto do Ollama ou sozinho: docker compose --profile ai up -d
+  ai-local:
+    build:
+      context: .
+      dockerfile: apps/ai-local/Dockerfile
+    restart: unless-stopped
+    profiles: [ai]
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 3G }
+        reservations: { memory: 1G }
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_MODEL_DIR: /models/whisper
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      EMBEDDING_MODEL_DIR: /models/embeddings
+      TZ: ${TZ:-America/Sao_Paulo}
+    volumes:
+      - aimodels:/models
+    ports:
+      - "127.0.0.1:${AI_LOCAL_PORT:-8001}:8001"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks: [cr-ia]
+
+  # Perfil opcional "search": busca web própria (SearXNG, sem conta, sem custo).
+  # Sobe: docker compose --profile search up -d  (e SEARXNG_URL=http://searxng:8080)
+  searxng:
+    image: searxng/searxng:2026.1.19-76e16b85e
+    restart: unless-stopped
+    profiles: [search]
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1G }
+        reservations: { memory: 256M }
+    environment:
+      BASE_URL: ${SEARXNG_PUBLIC_URL:-http://127.0.0.1:8888/}
+      TZ: ${TZ:-America/Sao_Paulo}
+    ports:
+      - "127.0.0.1:${SEARXNG_PORT:-8888}:8080"
+    volumes:
+      # JSON habilitado (docker/searxng/settings.yml) — sem isso a API não lê resultados.
+      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/healthz')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks: [cr-ia]
+
+volumes:
+  pgdata:
+  apidata:
+  agentwork:
+  ollama:
+  aimodels:
+
+networks:
+  cr-ia:
+    driver: bridge

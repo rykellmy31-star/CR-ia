@@ -1,0 +1,33 @@
+node_modules/
+dist/
+build/
+*.local
+.env
+.env.*
+!.env.example
+data/
+uploads/
+coverage/
+.DS_Store
+.dev.vars
+.wrangler/
+Unselected files/
+apps/web/dist/
+
+# Segredos / dados da VPS — nunca publicar
+*.key
+*.pem
+*.p12
+*.pfx
+*.minisig
+*.dump
+*.sql.gz
+*.tar.gz
+secrets/
+backups/
+*.db
+*.sqlite*
+.cria-install-token
+*.log
+__pycache__/
+*.pyc

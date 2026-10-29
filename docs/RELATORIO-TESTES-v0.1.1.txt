@@ -1,0 +1,119 @@
+CR IA v0.1.1 — RELATÓRIO DE TESTES (auditoria)
+Data: 2026-10-22T18:25:23Z
+Node: v20.20.2 | Docker: 26.1.5+dfsg1 | PG teste: 17 | Chromium: headless-shell
+==================================================================
+
+### 1. Testes automatizados (vitest: unit + integração + PG real + imagem real)
+ ✓ tests/api.test.ts > API HTTP > health
+ ✓ tests/api.test.ts > API HTTP > login rejeita senha errada
+ ✓ tests/api.test.ts > API HTTP > rotas protegidas exigem token
+ ✓ tests/api.test.ts > API HTTP > chat cria conversa, responde e persiste histórico
+ ✓ tests/api.test.ts > API HTTP > modelos listam catálogo real
+ ✓ tests/api.test.ts > API HTTP > guest não acessa admin
+ ✓ tests/api.test.ts > API HTTP > imagens: gera SVG, lista na biblioteca
+ ✓ tests/api.test.ts > API HTTP > tarefas: cria echo e aprova fluxo
+ ✓ tests/api.test.ts > API HTTP > upload valida tipo e lê texto
+ ✓ tests/api.test.ts > API HTTP > models/test executa inferência real no mock
+ ✓ tests/api.test.ts > API HTTP > models/test rejeita modelo desconhecido e guest não testa
+ ✓ tests/api.test.ts > API HTTP > github/read sem token falha com mensagem clara (sem tocar em repos)
+ ✓ tests/api.test.ts > API HTTP > revogar sessões invalida tokens antigos (e re-login funciona)
+ ✓ tests/pg-real.test.ts > PostgresAdapter (BANCO REAL) > driver é postgres
+ ✓ tests/pg-real.test.ts > PostgresAdapter (BANCO REAL) > CRUD de usuários + e-mail case-insensitive
+ ✓ tests/pg-real.test.ts > PostgresAdapter (BANCO REAL) > conversas + mensagens + busca ILIKE
+ ✓ tests/pg-real.test.ts > PostgresAdapter (BANCO REAL) > fila: claim com SKIP LOCKED + retry
+ ✓ tests/pg-real.test.ts > PostgresAdapter (BANCO REAL) > arquivos + imagens + isolamento
+ ✓ tests/pg-real.test.ts > PostgresAdapter (BANCO REAL) > uso + auditoria + settings (upsert)
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > CRUD de usuários
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > conversas + mensagens + busca + exclusão em cascata
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > isolamento entre usuários
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > fila de tarefas: claim é atômico por instância
+ ✓ tests/jsondb.test.ts > JsonFileAdapter > uso + auditoria + settings
+ ✓ tests/security.test.ts > token versioning > assina com versão e verifica
+ ✓ tests/security.test.ts > token versioning > tokens legados (sem tv) assumem versão 1
+ ✓ tests/security.test.ts > security headers > emite cabeçalhos de segurança
+ ✓ tests/security.test.ts > rate limit > bloqueia após o máximo da janela
+ ✓ tests/security.test.ts > rate limit > IPs diferentes têm cotas separadas
+ ✓ tests/registry.test.ts > ModelRegistry > lista modelos com mock sempre disponível
+ ✓ tests/registry.test.ts > ModelRegistry > auto-seleção cai no mock quando nada mais existe
+ ✓ tests/registry.test.ts > ModelRegistry > política BLOCK_PAID_PROVIDERS impede modelos pagos
+ ✓ tests/registry.test.ts > ModelRegistry > admin pode desabilitar modelos
+ ✓ tests/mock-ai.test.ts > MockTextAdapter > responde em PT-BR sem rede
+ ✓ tests/mock-ai.test.ts > MockTextAdapter > gera ideia de campanha
+ ✓ tests/mock-ai.test.ts > MockSvgImageAdapter > gera SVG válido nas dimensões pedidas
+ ✓ tests/mock-ai.test.ts > MockSvgImageAdapter > renderSvgArt varia com o prompt
+ ✓ tests/mock-ai.test.ts > estimateTokens > estima ~4 chars/token
+ ✓ tests/pollinations.test.ts > PollinationsImageAdapter (desligado por padrão) > sem consentimento: sem modelos, ping falso, erro claro
+ ✓ tests/pollinations.test.ts > PollinationsImageAdapter (desligado por padrão) > expõe o modelo quando habilitado
+ ✓ tests/pollinations.test.ts > PollinationsImageAdapter (LIVE — rede real) > ping retorna verdadeiro
+ ✓ tests/pollinations.test.ts > PollinationsImageAdapter (LIVE — rede real) > gera imagem REAL (bytes de imagem, não SVG) 344ms
+ ✓ tests/seed.test.ts > validateSeedInput > aceita contas válidas (dev e prod)
+ ✓ tests/seed.test.ts > validateSeedInput > RECUSA senha padrão em produção
+ ✓ tests/seed.test.ts > validateSeedInput > permite senha padrão em dev (com aviso em runtime)
+ ✓ tests/seed.test.ts > validateSeedInput > exige senha 8+ e e-mail válido
+ ✓ tests/crypto.test.ts > crypto > hash + verify de senha
+ ✓ tests/crypto.test.ts > crypto > JWT assina e verifica
+ ✓ tests/crypto.test.ts > crypto > tokens opacos são únicos
+ Test Files  9 passed (9)
+      Tests  49 passed | 1 skipped (50)
+
+### 2. Builds de produção
+
+api: BUILD OK
+
+worker: BUILD OK
+✓ built in 1.34s
+
+### 3. Scripts + Compose
+scripts bash: SYNTAX OK
+docker-compose.yml: YAML OK
+
+### 4. Seed seguro via CLI (3 cenários, todos OK)
+  [OK] tsx (dev): criou admin+guest
+  [OK] node dist/seed.js (caminho Docker): manteve existentes, nada alterado
+  [OK] NODE_ENV=production + senha padrão: RECUSOU com exit code 1, nada alterado
+
+### 5. Docker real — build das 3 imagens (Docker 26, overlay2)
+  [OK] apps/api/Dockerfile -> cr-ia-api (226 MB)
+  [OK] apps/worker/Dockerfile -> cr-ia-worker (226 MB)
+  [OK] apps/web/Dockerfile -> cr-ia-web (63.2 MB)
+  Bug encontrado e corrigido: deps "@cr-ia/*" com versão fixa quebravam o
+  `npm install` no build (404 no registry) -> trocado para "*".
+
+### 6. Docker Compose real — stack db+api+worker+web (Postgres 16)
+  [OK] up -d --build: db healthy, api/worker/web started
+  [OK] ./scripts/migrate-seed.sh: schema + 2 contas criadas no Postgres
+  [OK] Site servido (HTML pt-BR) + /api/health via proxy Nginx (v0.1.1, db=postgres)
+  [OK] Login admin+guest via proxy; headers de segurança únicos (HSTS em prod)
+  [OK] Chat via proxy (conversa persistida no Postgres)
+  [OK] /api/models: qwen3:4b honestamente indisponível (sem perfil ollama);
+      pollinations-flux disponível e marcado external=true
+  [OK] POST /models/test (mock-cr-1): ok, latência 0ms, amostra retornada
+  [OK] POST /models/test (pollinations-flux): ok, 6363ms, 14034 bytes image/jpeg
+  [OK] Imagem REAL 1024x1024 (farol ao pôr do sol): JPEG 87 KB, conferida
+      visualmente — fotorrealista, fiel ao prompt
+  [OK] Worker executou tarefa echo da fila Postgres: pending -> done (attempts=1)
+  [OK] ./scripts/backup.sh: db + arquivos + integridade (gunzip -t, tar -t) OK
+  [OK] ./scripts/restore.sh: ciclo PROVADO — 2 usuários -> backup -> excluir 1
+      -> restore (RESTAURAR) -> 2 usuários de volta
+  Bug encontrado e corrigido: pg_dump sem --clean quebrava o restore
+  ("relation already exists") -> flags adicionadas + re-testado com sucesso.
+
+### 7. Navegador real (Chromium headless via Playwright, pelo proxy :8080)
+  [OK] 6/6: título -> login UI -> chat responde -> estúdio gera imagem real ->
+      tarefa criada -> alternância de tema. Screenshot do chat conferido.
+
+### 8. Adaptador Ollama (servidor stub da API /api/tags + /api/chat)
+  [OK] ping=true, installedModels listados, chat com payload correto
+      (model/msgs/temperature), tokens 10/20, paid=false, servidor morto=false
+  NOTA: modelo de peso real (qwen3:4b, 2.5 GB) não cabe neste sandbox de
+  testes (1 GB RAM); será baixado na VPS via ./scripts/ollama-setup.sh.
+  O caminho de código do adaptador está validado; o roteiro de aceite (§5 do
+  STATUS.md) inclui teste do modelo real na OVH.
+
+### 9. O que NÃO foi executado aqui (limites honestos do ambiente)
+  - Deploy Cloudflare (D1/R2/Workers AI/Queues): código pronto e tipado, mas
+    sem conta/token neste ambiente. Roteiro em INSTALACAO.md §3.
+  - GitHub com token real: nenhuma chamada externa a repositórios foi feita
+    (proteção aos repos do usuário); guardas testados sem token (falha clara).
+  - Ollama com modelo de verdade: ver §8.
+  - Carga/stress e multi-réplica: fora do escopo v0.1.x (2 usuários).

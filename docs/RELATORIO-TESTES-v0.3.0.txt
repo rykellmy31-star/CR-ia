@@ -1,0 +1,69 @@
+CR IA v0.3.0 — Relatório de testes (PROMPT MESTRE: OpenRouter primário)
+Data: 24/10/2026. Ambiente do agente (sandbox), sem acesso à VPS do dono.
+Regra: ✅ = implementado E testado; 🔥 = validado ao vivo; ⏳ = pendente.
+
+1) BATERIA AUTOMATIZADA (tudo executado de verdade nesta rodada)
+---------------------------------------------------------------
+✅ tsc --noEmit apps/api: limpo (0 erros).
+✅ tsc --noEmit apps/web: limpo (0 erros).
+✅ build @cr-ia/shared: ok. build apps/api (tsc emit): ok.
+✅ build apps/worker: ok. build apps/web (vite): ok (286 KB JS / 80 KB gzip).
+✅ vitest apps/api: 35 arquivos, 265 passed / 12 skipped / 0 failed.
+   - 217 preexistentes continuam verdes (nenhuma regressão).
+   - 48 novos: openrouter-sync (21), openrouter-image (11), paid-ack (11),
+     openrouter-admin (8, ponta a ponta via app real + fetch stub).
+✅ node --test scripts/: 62 pass / 0 fail / 0 skipped (+1 heartbeat updater).
+
+2) PROVAS AO VIVO (rede real, sem chave, sem gasto) 🔥
+------------------------------------------------------
+✅ syncCatalog (código compilado dist/ + OpenRouter oficial), 24/10/2026:
+   520 modelos totais · 469 texto · 63 imagem · 20 grátis · 1,0s · 0 erros.
+✅ 4 modelos de imagem do escopo EXISTEM em /images/models, todos image-only
+   com edição (input_references): qwen/qwen-image-2.1-turbo,
+   qwen/qwen-image-2.1-pro, qwen/qwen-image-3-pro,
+   black-forest-labs/flux-3-image-klein. Preço não divulgado no catálogo →
+   tratados como pagos (exigem créditos + "Pago autorizado").
+✅ Correção de recon: os 4 NÃO estão no /models (só no /images/models) —
+   o merge dos dois endpoints os cobre; verificado no catálogo final.
+✅ Nenhum modelo imagem+free no momento (0) → fallback Pollinations mantido.
+
+3) COMPORTAMENTOS PROVADOS POR TESTE (stubs fiéis, sem gasto)
+------------------------------------------------------------
+✅ Gratuidade honesta: zero=free; >0=pago; ausente=desconhecido→pago.
+✅ Diff de sync: added/updated/removed; prefs do admin (disabled) intactas.
+✅ Falha em /images/models não derruba texto; falha em /models aborta.
+✅ Teste de chave: 200 (label/uso/limite), 401, 402, 429 em pt-BR.
+✅ Geração: POST /images oficial (model+prompt+aspect_ratio+n); bytes PNG/
+   JPEG/WebP/GIF/SVG validados; rejeita 200 sem b64 e bytes não-imagem.
+✅ Edição: recusa modelo sem suporte; envia data URL em input_references.
+✅ Erros: 401/402/500 acionáveis; 429 vira RateLimitError (contagem na UI).
+✅ Custo real usage.cost (0.04) gravado e somado no /admin/usage ($ real).
+✅ Chat pago: 403 BLOCK_PAID → paidAck → 200 (stub); status available→installed.
+✅ Ping 1×/adaptador com 200 ids; auto-select prefere grátis; pagos sem ack pulados.
+✅ Admin-only: não-admin recebe 403; chave nunca sai inteira (máscara+fonte).
+✅ Sync-config valida (400 em 999h) e persiste; boot-sync sem catálogo funciona.
+✅ Heartbeat do updater: serviço escreve sinal fresco (<60s) p/ o painel.
+✅ Migração 0004 listada no migrate.ts; inserts/selects pg+json+d1 atualizados.
+
+4) CORREÇÕES DESTA RODADA (bugs reais encontrados e corrigidos)
+--------------------------------------------------------------
+✅ UpdateCenter chamava /admin/updates/* (404 sempre) → corrigido p/ /api/admin/*.
+✅ INSTALACAO §2.2 mandava `tar -xzf` num ZIP real (falharia) → `unzip -o -q`.
+✅ D1 logUsage com bind faltando (kind) → corrigido na mesma instrução.
+✅ /api/health com versão fixa "0.2.0" → dinâmica (package.json).
+✅ Seletores: pago-sem-ativação não é mais selecionável; edição com fallback.
+
+5) NÃO EXECUTADO (honesto — ver PENDENCIAS-v0.3.0.md) ⏳
+-------------------------------------------------------
+⏳ Instalação v0.3.0 na VPS + migração 0004 em Postgres real (sem PG aqui;
+   sintaxe revisada; e2e de banco foi provado na v0.2.0).
+⏳ Sync/chave com credencial real; nenhuma chamada paga real (chat ou imagem)
+   foi executada — proibido sem autorização específica.
+⏳ Docker Compose, navegador/celular, Ollama, SearXNG, SMTP, R2 (herdado).
+⏳ Preço exato por imagem via /images/models/<id>/endpoints (P1.1).
+
+6) ENTREGA
+----------
+ZIP único cr-ia-v0.3.0-pronta.zip (contagem + sha256 impressos na geração):
+sem .env/segredos, scripts executáveis, docs (OPENROUTER.md, INSTALACAO.md,
+PENDENCIAS-v0.3.0.md, este relatório), migrações 0001→0004.

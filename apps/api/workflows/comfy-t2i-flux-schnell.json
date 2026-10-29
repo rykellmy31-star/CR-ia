@@ -1,0 +1,61 @@
+{
+  "_comment": "CR IA — texto→imagem FLUX.1-schnell NATIVO (formato API). EXIGE no ComfyUI: unet flux1-schnell.safetensors (ou .gguf + nós GGUF), t5xxl + clip_l, vae ae.safetensors. Confira os nomes dos nós na SUA versão do ComfyUI antes de usar em produção.",
+  "10": {
+    "class_type": "UNETLoader",
+    "inputs": { "unet_name": "flux1-schnell.safetensors", "weight_dtype": "default" }
+  },
+  "11": {
+    "class_type": "DualCLIPLoader",
+    "inputs": { "clip_name1": "t5xxl_fp16.safetensors", "clip_name2": "clip_l.safetensors", "type": "flux" }
+  },
+  "12": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "{{POSITIVE}}", "clip": ["11", 0] }
+  },
+  "13": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "", "clip": ["11", 0] }
+  },
+  "14": {
+    "class_type": "EmptySD3LatentImage",
+    "inputs": { "width": {{WIDTH}}, "height": {{HEIGHT}}, "batch_size": 1 }
+  },
+  "15": {
+    "class_type": "BasicGuider",
+    "inputs": { "model": ["10", 0], "conditioning": ["12", 0] }
+  },
+  "16": {
+    "class_type": "BasicScheduler",
+    "inputs": { "model": ["10", 0], "scheduler": "sgm_uniform", "steps": 4, "denoise": 1 }
+  },
+  "17": {
+    "class_type": "RandomNoise",
+    "inputs": { "noise_seed": {{SEED}} }
+  },
+  "18": {
+    "class_type": "KSamplerSelect",
+    "inputs": { "sampler_name": "euler" }
+  },
+  "19": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": ["17", 0],
+      "guider": ["15", 0],
+      "sampler": ["18", 0],
+      "sigmas": ["16", 0],
+      "latent_image": ["14", 0]
+    }
+  },
+  "20": {
+    "class_type": "VAELoader",
+    "inputs": { "vae_name": "ae.safetensors" }
+  },
+  "21": {
+    "class_type": "VAEDecode",
+    "inputs": { "samples": ["19", 0], "vae": ["20", 0] }
+  },
+  "22": {
+    "class_type": "SaveImage",
+    "inputs": { "images": ["21", 0], "filename_prefix": "cr-ia-flux" }
+  }
+}

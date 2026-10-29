@@ -1,0 +1,28 @@
+{
+  "name": "cr-ia",
+  "version": "0.3.1",
+  "private": true,
+  "description": "CR IA — plataforma particular de IA multimodelo (monorepo: api + web + worker)",
+  "type": "module",
+  "packageManager": "npm@10",
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/web",
+    "apps/worker"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:worker": "npm run dev -w apps/worker",
+    "build": "npm run build -w packages/shared && npm run build -w apps/api && npm run build -w apps/web && npm run build -w apps/worker",
+    "test": "npm run test -w apps/api",
+    "test:scripts": "node --test scripts/cria-menu.test.mjs scripts/backup-sh.test.mjs scripts/bootstrap-github.test.mjs scripts/compose-check.test.mjs scripts/deploy-install.test.mjs scripts/make-release-zip.test.mjs scripts/ollama-setup.test.mjs scripts/r2-lib.test.mjs scripts/sign-release.test.mjs scripts/update-sh.test.mjs scripts/updater-service.test.mjs",
+    "seed": "npm run seed -w apps/api",
+    "lint": "echo \"(lint pendente — ver docs/STATUS.md)\"",
+    "test:e2e": "node --test scripts/e2e-real.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

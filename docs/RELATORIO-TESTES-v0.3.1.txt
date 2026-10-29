@@ -1,0 +1,66 @@
+CR IA v0.3.1 — Relatório de testes (rodada bloqueios-da-atualização)
+Data: 24/10/2026. Ambiente do agente (sandbox), sem acesso à VPS do dono.
+Herda todas as provas da v0.3.0 (RELATORIO-TESTES-v0.3.0.txt).
+
+1) BATERIA AUTOMATIZADA (executada de verdade nesta rodada)
+----------------------------------------------------------
+✅ tsc --noEmit apps/api: limpo. tsc --noEmit apps/web: limpo.
+✅ builds shared/api/worker/web: verdes.
+✅ vitest apps/api: 36 arquivos, 269 passed / 12 skipped / 0 failed.
+   (+4 novos: update-flow.test.ts — upload→aprovação→aplicação→rollback.)
+✅ node --test scripts/: 66 pass / 0 fail / 0 skipped
+   (+1 compose-check: API com UPDATER_QUEUE_SECRET; +3 sign-release.)
+
+2) BLOQUEIO 1 — HMAC NA API ✅
+------------------------------
+✅ docker-compose.yml: serviço `api` agora recebe UPDATER_QUEUE_SECRET
+   (fail-closed `:?`, gerado pelo instalador). Antes: só o updater tinha,
+   e aprovar pela API retornava "UPDATER_QUEUE_SECRET não configurado".
+✅ Regressão coberta por teste (compose-check 10/10).
+
+3) BLOQUEIO 2 — ASSINATURA MINISIGN ✅
+-------------------------------------
+✅ scripts/sign-release.mjs: genkey (par .pub 42B/.key 0600, recusa
+   sobrescrever), sign (autoverifica), verify (OK/falha) — 3/3 testes.
+✅ Formatos padrão minisign (magia Ed, keynum 8B, ed25519): .pub e .minisig
+   em 2 linhas; .key em formato próprio documentado (0600, offline).
+✅ Verify recusa: 1 byte adulterado, chave errada (keynum), malformado.
+✅ Forma do .env (só a linha base64) verificada por teste.
+✅ Artefato: cr-ia-release.pub + cr-ia-v0.3.1-pronta.zip.minisig, com a
+   assinatura CHECADA pelo verificador REAL da API (dist, §5).
+
+4) BLOQUEIOS 3+4 — PRESERVAÇÃO + FLUXO COMPLETO ✅
+-------------------------------------------------
+✅ update-flow.test.ts 4/4 (updater real spawnado 2×, fila HMAC real,
+   health HTTP real, rsync-cópia fiel com excludes, docker shimado):
+   1. upload de ZIP 9.9.9 assinado (minisign gerada no teste) → 201,
+      staging + checks passed (recibo escrito);
+   2. aprovação → pedido approved-*.json com HMAC recomputado e IGUAL;
+   3. aplicação → app v2 no ar, backup.sh ANTES, snapshot v1 guardado,
+      current.json 9.9.9, histórico "applied", compose up + migrate
+      chamados; .env/data/backups/node_modules BYTE-IDÊNTICOS;
+   4. rollback → app v1 de volta, current.json 0.3.0, pré-rollback
+      guardado, histórico; preservados INTACTOS de novo.
+✅ Camadas de preservação auditadas: .env recusado DENTRO do ZIP;
+   rsync exclui .env/.env.*/data/backups/node_modules; volumes pgdata e
+   apidata fora do alcance do rsync; updater nunca roda `down -v`;
+   migrações aditivas; seed preserva usuários existentes.
+
+5) ASSINATURA DO ARTEFATO (verificação cruzada REAL) ✅
+------------------------------------------------------
+✅ .minisig do ZIP final verificada com o verificador da API compilada
+   (dist/services/updates.js → verifyMinisign) + com o próprio script.
+   (hashes impressos na entrega; confira após o download.)
+
+6) NÃO EXECUTADO (honesto) ⏳
+-----------------------------
+⏳ Instalação v0.3.1 + migração 0004 em Postgres real (sem PG/Docker aqui).
+⏳ Aplicação/rollback com docker+rsync+health REAIS (só na VPS).
+⏳ Primeira atualização real pelo painel (exige uma v0.3.2+ futura).
+⏳ Chamadas pagas reais OpenRouter (proibidas sem autorização).
+∴ Atualização pelo painel: TESTADA com shims (não "homologada em produção").
+
+7) ENTREGA
+----------
+cr-ia-v0.3.1-pronta.zip + .minisig + cr-ia-release.pub + cr-ia-release.key
+(segredo, OFFLINE). Primeira instalação: VIA SSH (bootstrap + pubkey).

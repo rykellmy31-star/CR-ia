@@ -1,0 +1,170 @@
+CR IA v0.2.0 — RELATÓRIO DE TESTES (execução real, 22/10/2026)
+===============================================================
+Regra da casa: nada aqui é simulado. O que não foi executado está
+marcado como PENDENTE e listado em docs/PENDENCIAS-v0.2.0.md.
+
+AMBIENTE DESTA AUDITORIA
+------------------------
+- Sandbox Linux x86_64 (sem systemd, sem Docker/dockerd instalado)
+- Node v20.20.2, npm 10, Python 3.13.16
+- PostgreSQL 17.11 REAL instalado via apt (cluster 17/main, porta 5432)
+- Chromium instalado via apt (/usr/bin/chromium) — validação em
+  navegador INICIADA mas NÃO concluída (ver pendências)
+- Sem GPU; sem acesso à VPS real; sem credenciais reais de nenhum tipo
+
+1) COMPILAÇÃO (todos os pacotes) — OK
+--------------------------------------
+Comando: npm run build   (shared -> api -> web -> worker)
+Resultado: ZERO "error TS"; Vite "built in ~1.1s".
+Observação: durante a v0.2.0 o build web quebrou 1 vez (backtick
+ausente em template literal no ImageStudio.tsx + case novo no
+TasksView.tsx); ambos corrigidos e o build final está verde.
+
+2) SUÍTE AUTOMATIZADA apps/api (vitest) — OK
+--------------------------------------------
+Comando: npm test -w apps/api
+Resultado: Test Files 15 passed (15) | Tests 77 passed, 10 skipped (87)
+- 10 skipped = placeholders de modo live (se invertem com as envs
+  de teste real) + testes que exigem serviços externos opcionais.
+- Inclui as suítes novas da v0.2.0:
+  * catalog.test.ts — catálogo de 20 modelos, licenças e seleção
+  * docparse.test.ts — PDF REAL (gerado à mão), DOCX REAL (zip+mammoth),
+    XLSX REAL (2 abas, em memória) -> texto extraído e indexado
+  * agent.test.ts — ciclo do agente dev com GIT REAL local
+    (validate->clone->analyze->edit->test->commit "done"; remote="skipped"
+    honesto; fixture quebrada falha com logs); paralelismo conta
+    somente "running"; ARG_DENY não bloqueia "go ./..."; ordem de
+    validação de fases corrigida
+  * ai-services.test.ts — quota de chat retorna 429 (não 502);
+    caminhos /api/ai/test; stubs SearXNG e ai-local via HTTP real
+    (busca semântica com method:"semantic", cosseno>0.15, senão keyword)
+  * usage-mail.test.ts — /admin/usage, uso diário por usuário,
+    recuperação por e-mail sem enumeração
+  * comfyui.test.ts — 5/5 contra stub HTTP com o formato REAL do
+    /history do ComfyUI (outputs por nó + status_str="error" falha);
+    provado: ping/upload/prompt/history/view, fillWorkflow com
+    escape JSON + números, adaptador t2i+i2i, POST /images/edit
+    (fileId->upload->edit->biblioteca), mapeamento 429
+
+3) POSTGRESQL REAL (pg-real.test.ts, live) — OK
+-----------------------------------------------
+Banco: PostgreSQL 17.11 local, banco cria_test, schema recriado do
+zero (DROP + migrations oficiais 0001 + 0002_v020_docs_agent.sql).
+Comando: TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/cria_test \
+         npx vitest run tests/pg-real.test.ts
+Resultado: 8 passed, 1 skipped (o skip é o placeholder "rode com
+banco real", que se inverte justamente no modo live).
+Cobre: driver postgres, CRUD usuários + e-mail case-insensitive,
+conversas+mensagens+busca ILIKE, fila com SKIP LOCKED + retry,
+arquivos+imagens+isolamento, uso+auditoria+settings (upsert),
+document_chunks (v0.2.0), agent_runs + breakdown + contagens (v0.2.0).
+
+4) SERVIÇO ai-local (FastAPI :8001) — BOOT REAL, MODELOS PENDENTES
+------------------------------------------------------------------
+- Instalado somente fastapi+uvicorn+pydantic (leves); imports pesados
+  são lazy dentro das funções (confirmado no fonte).
+- Boot real com uvicorn: GET /health -> 200 {"status":"ok",...,
+  "loaded":{"whisper":false,"embeddings":false}}.
+- POST /embed com corpo errado -> 422 de validação (correto).
+- POST /embed sem sentence_transformers instalado -> 503 honesto
+  "Modelo de embeddings indisponível: No module named ...".
+- Modelos reais (faster-whisper small, BAAI/bge-m3) NÃO foram
+  baixados neste sandbox (tamanho + sem GPU) — teste com modelos
+  reais fica para a VPS (roteiro nas pendências).
+
+5) DOCKER COMPOSE — NÃO VALIDADO NESTE SANDBOX (PENDENTE)
+---------------------------------------------------------
+Motivo: sem dockerd disponível no ambiente desta auditoria.
+O compose.yml contém os serviços api/web/worker/db/ollama +
+perfis "ai" (ai-local, limite 2 CPU/3G) e "search" (SearXNG),
+mas "docker compose up/build" NÃO foi executado na v0.2.0.
+Na v0.1.1 o ciclo Docker completo foi validado com 🔥 (ver
+RELATORIO-TESTES-v0.1.1.txt); as imagens mudaram na v0.2.0
+(worker instala git; api copia workflows ComfyUI), então a
+revalidação na VPS é obrigatória antes do aceite.
+
+6) NAVEGADOR — NÃO CONCLUÍDO (PENDENTE)
+---------------------------------------
+Chromium instalado; API real de dist chegou a ser ligada para o
+roteiro de fumaça, mas a sessão foi interrompida pelo pedido do
+ZIP antes da execução. Roteiro pronto em PENDENCIAS-v0.2.0.md.
+
+7) SERVIÇOS EXTERNOS/OPCIONAIS — STATUS HONESTO
+-----------------------------------------------
+- ComfyUI/GPU externa: provado contra STUB fiel; GPU real pendente.
+- SearXNG: stub HTTP provado; container real pendente.
+- SMTP: código + anti-enumeração testados; envio real pendente
+  (sem credenciais neste ambiente, por regra).
+- Pollinations: sem exclusividade; throttle 60s + Retry-After
+  implementados; sem teste live nesta rodada.
+- Provedores pagos: BLOQUEADOS por regra (BLOCK_PAID_PROVIDERS);
+  nenhum centavo gasto, nenhuma chave usada.
+
+COMO REPRODUZIR (sem Docker)
+------------------------------
+cd cr-ia
+npm install
+npm run build
+npm test --workspace apps/api
+# banco real:
+sudo apt-get install -y postgresql && sudo pg_ctlcluster 17 main start
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
+sudo -u postgres psql -c "CREATE DATABASE cria_test;"
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/cria_test \
+  npx vitest run tests/pg-real.test.ts --workspace apps/api
+# ai-local (boot):
+pip install fastapi "uvicorn[standard]" pydantic python-multipart
+cd apps/ai-local && python3 -m uvicorn src.main:app --port 8001
+curl http://127.0.0.1:8001/health
+
+8) FASE 2 — PROVEDORES POR API (23/10/2026, 00:15) — OK
+-------------------------------------------------
+- 6 adaptadores oficiais: OpenAI, Anthropic (Messages API), Google
+  (generateContent), xAI, DeepSeek, Mistral (OpenAI-compatíveis),
+  com IDs reais pesquisados em 22/10/2026 (gpt-5-mini, gpt-5,
+  claude-opus-4-6, claude-sonnet-4-6, gemini-3.8-flash, gemini-4-argon,
+  grok-4.7, grok-4.3, deepseek-chat, deepseek-reasoner,
+  mistral-large-latest, mistral-medium-latest).
+- Cofre AES-256-GCM (WebCrypto): roundtrip OK; adulteração e segredo
+  errado falham. Chaves nunca retornam inteiras (só máscara).
+- 17 testes novos (tests/providers.test.ts) contra stubs HTTP fiéis
+  aos 3 formatos oficiais: 17/17 verdes. Sem chave, NENHUMA chamada
+  externa é tentada (status needs-credentials, ping nem executa).
+- Nenhuma chamada paga real executada (sem credenciais — por regra).
+- Arena: investigação concluiu que NÃO há API pública oficial;
+  não integrada (ver docs/ARENA-API.md).
+
+9) FASE 3 — BUSCA WEB + MEMÓRIA + CÓDIGO (23/10/2026, 01:00) — OK
+-----------------------------------------------------------
+- 4 provedores oficiais: SearXNG (GET /search), Brave
+  (GET /res/v1/web/search + X-Subscription-Token), Tavily
+  (POST /search), Google PSE (GET customsearch/v1, num<=10).
+  Ordem grátis-primeiro; painel/env/explícito com precedência;
+  erro honesto "desligada" sem provedor (nada simulado).
+- 24 testes novos (tests/search-memory.test.ts), todos contra
+  stubs HTTP fiéis + cofre real: 24/24 verdes —
+  5 busca web (ordem, 3 pagos via cofre, desconhecido→503),
+  status 4 provedores, histórico + uso web-search, admin global,
+  3 leitura URL (SSRF loopback bloqueado, ftp rejeitado,
+  extração sem script/nav), 4 memória (CRUD, filtro, isolamento
+  A/B, contexto do agente só fix/decision do repo), 3 código
+  (index 2 arq via run real no disco, semântica via stub /embed,
+  403 outro dono, ../ rejeitado), 4 chat automático (dispara,
+  não dispara, admin desliga, web:true pula), 2 settings
+  (validação + preferido altera ordem).
+- Correções durante os testes: 4 bugs ERAM do teste (q curta,
+  título curto, ordem semântica, 404-vs-400); 1 lacuna real
+  encontrada e corrigida (search.provider do painel não entrava
+  na ordem — agora entra, com teste).
+- Nenhuma chamada externa real executada (sem chaves — por regra);
+  SearXNG real, chaves pagas reais e migração 0003 na VPS seguem
+  pendentes (PENDENCIAS itens 4, 7, 11).
+
+RESUMO NUMÉRICO (atualizado pós-Fase 3)
+---------------------------------------
+- Builds: 4/4 verdes (shared, api, web, worker), 0 error TS
+- Vitest apps/api: 118 passed, 10 skipped (17 arquivos)
+- pg-real live: 8 passed, 1 skipped (placeholder invertido)
+- ComfyUI stub: 5/5 | Provedores stub: 17/17 | Fase 3 stub: 24/24
+- ai-local: boot real + 503 honesto (modelos pendentes)
+- Docker/Browser/GPU-real/SMTP-real/SearXNG-real: PENDENTES

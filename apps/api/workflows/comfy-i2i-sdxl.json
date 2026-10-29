@@ -1,0 +1,46 @@
+{
+  "_comment": "CR IA — edição img2img (upload + prompt) estilo SDXL. Para Qwen-Image-Edit nativo, exporte o grafo no SEU ComfyUI (Save API Format) com os nós do Qwen instalados e aponte COMFY_WORKFLOW_EDIT. Placeholder {{IMAGE}} = nome remoto após /upload.",
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": { "ckpt_name": "sd_xl_base_1.0.safetensors" }
+  },
+  "2": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "{{POSITIVE}}", "clip": ["1", 1] }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "{{NEGATIVE}}", "clip": ["1", 1] }
+  },
+  "4": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "{{IMAGE}}" }
+  },
+  "5": {
+    "class_type": "VAEEncode",
+    "inputs": { "pixels": ["4", 0], "vae": ["1", 2] }
+  },
+  "6": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["2", 0],
+      "negative": ["3", 0],
+      "latent_image": ["5", 0],
+      "seed": {{SEED}},
+      "steps": 25,
+      "cfg": 7,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 0.65
+    }
+  },
+  "7": {
+    "class_type": "VAEDecode",
+    "inputs": { "samples": ["6", 0], "vae": ["1", 2] }
+  },
+  "8": {
+    "class_type": "SaveImage",
+    "inputs": { "images": ["7", 0], "filename_prefix": "cr-ia-edit" }
+  }
+}
