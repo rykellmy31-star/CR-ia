@@ -26,7 +26,7 @@ describe("Catálogo por provedor — navegação mobile", () => {
     const code = read("ProviderCatalogPicker.tsx");
     assert.match(code, /"\/api\/admin\/credentials"/);
     assert.match(code, /type="password"/);
-    assert.match(code, /setKey\("")/);
+    assert.ok(code.includes('setKey("");'));
     assert.doesNotMatch(code, /localStorage\.setItem/);
   });
   it("NVIDIA exige confirmação explícita de Free Endpoint para aprovar", () => {
