@@ -11,6 +11,7 @@ const FORMATS: { id: ImageFormat; label: string; hint: string }[] = [
 
 export function ImageStudio({ models, onOpenSidebar }: { models: ModelInfo[]; onOpenSidebar: () => void }) {
   const [prompt, setPrompt] = useState("");
+  const [negativePrompt, setNegativePrompt] = useState("");
   const [format, setFormat] = useState<ImageFormat>("1:1");
   const [model, setModel] = useState("auto");
   const [brandName, setBrandName] = useState("");
@@ -46,6 +47,7 @@ export function ImageStudio({ models, onOpenSidebar }: { models: ModelInfo[]; on
     try {
       const data = await post<{ image: GeneratedImage }>("/api/images/generate", {
         prompt: prompt.trim(),
+        ...(model === "cloudflare-leonardo-phoenix-1" && negativePrompt.trim() ? { negativePrompt: negativePrompt.trim() } : {}),
         format,
         model: model === "auto" ? undefined : model,
         brand: brandName.trim() ? { name: brandName.trim(), color: brandColor.trim() || undefined } : undefined,
@@ -148,6 +150,17 @@ export function ImageStudio({ models, onOpenSidebar }: { models: ModelInfo[]; on
                 </p>
               )}
             </div>
+            {model === "cloudflare-leonardo-phoenix-1" && (
+              <div>
+                <label htmlFor="negative-prompt" className="text-sm font-medium">O que NÃO deve aparecer (opcional)</label>
+                <textarea id="negative-prompt" value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)} rows={2}
+                  maxLength={1000} placeholder="Ex.: sem pessoas, sem marcas, sem texto adicional"
+                  className="mt-1 w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm" />
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">
+                  O Phoenix prioriza fidelidade à descrição, mas consome mais da franquia diária Cloudflare.
+                </p>
+              </div>
+            )}
             <details className="text-sm">
               <summary className="cursor-pointer font-medium">Identidade visual (opcional)</summary>
               <div className="grid grid-cols-2 gap-2 mt-2">

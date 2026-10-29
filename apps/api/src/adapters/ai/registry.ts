@@ -25,7 +25,7 @@ import { OpenAICompatTextAdapter, type KeyedAdapter } from "./openai-compatible.
 import { OpenRouterImageAdapter } from "./openrouter-image.js";
 import { NvidiaNimTextAdapter } from "./nvidia-nim.js";
 import { NvidiaCosmosImageAdapter, NVIDIA_COSMOS_IMAGE_ID } from "./nvidia-image.js";
-import { CloudflareFluxRestAdapter, CLOUDFLARE_FLUX_REST_ID, CLOUDFLARE_FLUX_KLEIN_ID } from "./cloudflare-flux-rest.js";
+import { CloudflareFluxRestAdapter, CLOUDFLARE_FLUX_REST_ID, CLOUDFLARE_FLUX_KLEIN_ID, CLOUDFLARE_PHOENIX_ID } from "./cloudflare-flux-rest.js";
 import { OR_DEFAULT_REFERER, type OrCatalogEntry } from "../../services/openrouter.js";
 import { AnthropicTextAdapter } from "./anthropic.js";
 import { GoogleTextAdapter } from "./google.js";
@@ -430,7 +430,9 @@ export class ModelRegistry {
     // GPU externa → Pollinations (fallback) → SVG local garantido.
     // O SVG é fallback explícito de demonstração — nunca se passa por IA real.
     const candidates = [
-      ...(this.defaultImageModel ? [this.defaultImageModel] : []),
+      ...(this.defaultImageModel && this.defaultImageModel !== "local-svg-1" ? [this.defaultImageModel] : []),
+      ...(this.env.CLOUDFLARE_ACCOUNT_ID && this.env.CLOUDFLARE_AI_API_TOKEN && (this.env.IMAGE_PROVIDER === "openrouter" || !this.env.IMAGE_PROVIDER)
+        ? [CLOUDFLARE_FLUX_KLEIN_ID] : []),
       preferred, CLOUDFLARE_FLUX_KLEIN_ID, CLOUDFLARE_FLUX_REST_ID, ...orIds, "flux.1-schnell", POLLINATIONS_MODEL_ID, "local-svg-1",
     ].filter((id, i, arr) => arr.indexOf(id) === i);
     const pingCache = new Map<ImageAdapter, boolean>();

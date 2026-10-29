@@ -119,7 +119,15 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     requirements: "Suba o perfil: docker compose --profile ai up -d",
   },
   {
-    id: "cloudflare-flux-2-klein-4b", label: "FLUX.2 Klein 4B (Cloudflare · recomendado)", provider: "workers-ai",
+    id: "cloudflare-leonardo-phoenix-1", label: "Leonardo Phoenix · fiel à descrição (cota reduzida)", provider: "workers-ai",
+    capabilities: ["image-gen"],
+    description: "Modelo voltado à fidelidade ao pedido e a textos legíveis. Aceita descrição do que evitar. Consome bem mais Neurons do que o FLUX Klein.",
+    license: "Leonardo AI + termos Cloudflare Workers AI (verifique direitos de uso comercial)",
+    local: false, cost: "free-tier", limits: "Franquia Workers AI; alto consumo de Neurons por imagem (não usar no automático).",
+    requirements: "Configure CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_AI_API_TOKEN na VPS.",
+  },
+  {
+    id: "cloudflare-flux-2-klein-4b", label: "FLUX.2 Klein 4B (Cloudflare · rápido)", provider: "workers-ai",
     capabilities: ["image-gen"],
     description: "Modelo mais recente com orientação e tamanho da imagem configuráveis; bom para imagens fiéis ao pedido. Usa a cota Workers AI.",
     license: "Black Forest Labs + termos Cloudflare Workers AI (confira a licença antes de uso comercial)",
