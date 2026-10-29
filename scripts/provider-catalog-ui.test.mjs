@@ -36,6 +36,17 @@ describe("Catálogo por provedor — navegação mobile", () => {
     assert.match(code, /"\/api\/admin\/nvidia\/approve"/);
     assert.match(code, /"\/api\/admin\/nvidia\/image\/enable"/);
   });
+  it("chat organiza por provedor e esconde modelos bloqueados", () => {
+    const code = read("ChatView.tsx");
+    assert.match(code, /aria-label="Escolher provedor de IA"/);
+    assert.match(code, /availableProviders\.map/);
+    assert.match(code, /aria-pressed=\{activeProvider === providerId\}/);
+    assert.match(code, /m\.capabilities\.includes\("chat"\) && m\.enabled/);
+    assert.match(code, /m\.status === "limited"/);
+    assert.match(code, /m\.provider === activeProvider/);
+    assert.doesNotMatch(code, /disabled=\{!usable\}/);
+    assert.match(code, /NVIDIA Free Endpoint: gratuito com cotas/);
+  });
   it("Administração exibe abas e abre provedores por padrão", () => {
     const code = read("AdminView.tsx");
     assert.match(code, /\("providers"\)/);
