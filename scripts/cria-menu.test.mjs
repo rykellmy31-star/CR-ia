@@ -12,6 +12,14 @@ describe('Menu SSH da CR IA (offline)', () => {
     assert.match(read('instalar-menu.sh'), /\/usr\/local\/bin\/menu/);
     assert.match(read('bootstrap-github.sh'), /scripts\/instalar-menu\.sh/);
   });
+  it('menu é executável pelo usuário ubuntu sem expor scripts de atualização', () => {
+    const install = read('instalar-menu.sh');
+    const update = read('atualizar-instalador.sh');
+    assert.match(install, /chmod 755 "\$INST"/);
+    assert.match(install, /install -m 755 "\$APP\/scripts\/\$script" "\$INST\/\$script"/);
+    assert.match(update, /chmod 755 "\$INST"/);
+    assert.match(update, /install -m 755 "\$TMP\/\$f" "\$INST\/\$f"/);
+  });
   it('menu tem as duas atualizações separadas e opções de segurança', () => {
     const s=read('cria-menu.sh');
     assert.match(s, /Atualizar sistema de IA/);
