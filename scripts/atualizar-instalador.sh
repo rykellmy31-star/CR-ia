@@ -56,9 +56,14 @@ read -r -p 'Atualizar scripts do menu? Digite ATUALIZAR: ' ans
 BACKUP="$INST/anteriores/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$BACKUP"
 chmod 700 "$BACKUP"
+chmod 755 "$INST" # permite chamar menu sem sudo; o script eleva privilegios internamente
 for f in "${FILES[@]}"; do
  [[ ! -f "$INST/$f" ]] || cp -a "$INST/$f" "$BACKUP/$f"
- install -m 750 "$TMP/$f" "$INST/$f"
+ if [[ "$f" == "cria-menu.sh" ]]; then
+   install -m 755 "$TMP/$f" "$INST/$f"
+ else
+   install -m 750 "$TMP/$f" "$INST/$f"
+ fi
 done
 ln -sfn "$INST/cria-menu.sh" /usr/local/bin/menu
 say "Instalador atualizado. Backup anterior: $BACKUP"
