@@ -11,6 +11,26 @@
 
 html, body, #root {
   height: 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Evita alargamento horizontal e zoom por duplo toque no celular.
+   Barras e conteúdos com scroll-x continuam com rolagem própria. */
+html, body {
+  overflow-x: clip;
+  touch-action: manipulation;
+}
+
+/* Safari do iPhone amplia automaticamente campos menores que 16px.
+   Aumentar apenas os controles editáveis evita zoom ao focar. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 /* Markdown renderizado no chat */
