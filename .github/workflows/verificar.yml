@@ -1,0 +1,31 @@
+name: Verificar CR IA
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.zip'
+      - 'docs/**'
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  testar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Validar sintaxe dos instaladores
+        run: |
+          bash -n scripts/migrar-vps-existente-github.sh scripts/bootstrap-github.sh scripts/atualizar-github.sh scripts/cria-menu.sh scripts/instalar-menu.sh
+          python3 -c "import ast; ast.parse(open('scripts/cria-generate-env.py').read())"
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+      - name: Testes dos scripts
+        run: node --test scripts/bootstrap-github.test.mjs scripts/cria-menu.test.mjs scripts/backup-sh.test.mjs
+      - name: Compilar
+        run: npm run build
