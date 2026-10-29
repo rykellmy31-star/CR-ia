@@ -60,7 +60,36 @@ export function ChatView(p: Props) {
       .catch(() => undefined);
   }, []);
 
-  const chatModels = useMemo(() => p.models.filter((m) => m.capabilities.includes("chat")), [p.models]);
+  // O catálogo completo continua na Administração. No chat, apenas modelos
+  // realmente selecionáveis aparecem — sem chaves ausentes ou pagos bloqueados.
+  const chatModels = useMemo(() => p.models.filter((m) =>
+    m.capabilities.includes("chat") && m.enabled &&
+    (m.status === "installed" || m.status === "available" || m.status === "limited") &&
+    !(m.provider === "openrouter" && m.paid && m.status === "available")
+  ), [p.models]);
+
+  const providerNames: Record<string, string> = {
+    nvidia: "🟢 NVIDIA", openrouter: "🌐 OpenRouter", google: "✨ Gemini",
+    groq: "⚡ Groq", openai: "🧠 OpenAI", anthropic: "💬 Claude",
+    deepseek: "🔷 DeepSeek", xai: "✴️ Grok", mistral: "🌬️ Mistral",
+    ollama: "🏠 Local", "workers-ai": "☁️ Cloudflare", mock: "🧪 Demonstração",
+  };
+  const availableProviders = useMemo(() => [...new Set(chatModels.map((m) => m.provider))], [chatModels]);
+  const activeProvider = model === "auto" ? "auto" : (chatModels.find((m) => m.id === model)?.provider ?? "auto");
+
+  // Uma preferência salva pode ficar indisponível depois de uma revogação.
+  // Nesse caso, não mantenha um valor inválido no seletor do navegador.
+  useEffect(() => {
+    if (model !== "auto" && p.models.length > 0 && !chatModels.some((m) => m.id === model)) {
+      setModel("auto");
+    }
+  }, [model, p.models.length, chatModels]);
+
+  const chooseProvider = (next: string) => {
+    if (next === "auto") { setModel("auto"); return; }
+    const first = chatModels.find((m) => m.provider === next);
+    if (first) setModel(first.id);
+  };
 
   useEffect(() => {
     (async () => {
@@ -220,48 +249,65 @@ export function ChatView(p: Props) {
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full">
       {/* topo */}
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/70 backdrop-blur">
-        <button onClick={p.onOpenSidebar} className="md:hidden text-xl px-1">☰</button>
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate text-sm">
+      <header className="flex flex-col gap-2 px-3 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/70 backdrop-blur">
+        <div className="flex items-center gap-2 w-full min-w-0">
+          <button onClick={p.onOpenSidebar} className="md:hidden text-xl px-1" aria-label="Abrir menu">☰</button>
+          <div className="flex-1 min-w-0 font-semibold truncate text-sm">
             {p.activeConv
               ? p.conversations.find((c) => c.id === p.activeConv)?.title ?? "Conversa"
               : "Nova conversa"}
           </div>
-        </div>
-        <label className="text-xs text-zinc-500 hidden sm:block">Modelo:</label>
-        <select value={model} onChange={(e) => setModel(e.target.value)}
-          className="max-w-[220px] rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="auto">✨ Automático (melhor disponível)</option>
-          {chatModels.map((m) => {
-            const blocked = m.provider === "openrouter" && m.paid && m.status === "available";
-            const usable = (m.status === "installed" || m.status === "available" || m.status === "limited") && m.enabled && !blocked;
-            const dot = m.status === "installed" ? "🟢"
-              : m.status === "limited" ? "⏳"
-              : m.status === "available" ? "🟡"
-              : m.status === "needs-credentials" ? "🔑"
-              : m.status === "incompatible" ? "⛔" : "🔴";
-            const suffix = blocked ? " (aguardando ativação do admin)"
-              : m.status === "needs-credentials" ? " (precisa de chave)"
-              : m.status === "limited" ? ` (grátis, limitado${m.limits ? `: ${m.limits}` : ""})`
-              : m.cost === "paid" ? " (pago)"
-              : m.cost === "free-tier" ? " (grátis, limitado)" : "";
-            return (
-              <option key={m.id} value={m.id} disabled={!usable} title={m.description}>
-                {dot} {m.label}{suffix}
-              </option>
-            );
-          })}
-        </select>
-        <button onClick={() => void savePreference()} title="Usar esta seleção como meu padrão (vale no modo Automático)"
-          className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
-          ⭐
-        </button>
-        {p.activeConv && (
-          <button onClick={regenerate} disabled={sending} title="Regenerar última resposta"
-            className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50">
-            ↻
+          <button onClick={() => void savePreference()} title="Salvar modelo escolhido como preferência"
+            className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            ⭐
           </button>
+          {p.activeConv && (
+            <button onClick={regenerate} disabled={sending} title="Regenerar última resposta"
+              className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50">
+              ↻
+            </button>
+          )}
+        </div>
+        <div role="group" aria-label="Escolher provedor de IA"
+          className="w-full min-w-0 flex gap-1.5 overflow-x-auto pb-1 overscroll-x-contain">
+          <button type="button" aria-pressed={activeProvider === "auto"} onClick={() => chooseProvider("auto")}
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors ${activeProvider === "auto" ? "bg-indigo-600 text-white border-indigo-600" : "border-zinc-300 dark:border-zinc-700"}`}>
+            ✨ Automático
+          </button>
+          {availableProviders.map((providerId) => (
+            <button key={providerId} type="button" aria-pressed={activeProvider === providerId}
+              onClick={() => chooseProvider(providerId)}
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors ${activeProvider === providerId ? "bg-indigo-600 text-white border-indigo-600" : "border-zinc-300 dark:border-zinc-700"}`}>
+              {providerNames[providerId] ?? providerId}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 w-full min-w-0">
+          <label htmlFor="chat-model-select" className="shrink-0 text-xs text-zinc-500">Modelo:</label>
+          <select id="chat-model-select" aria-label="Escolher modelo do provedor" value={model === "auto" ? "auto" : model}
+            onChange={(e) => setModel(e.target.value)}
+            className="flex-1 min-w-0 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+            {activeProvider === "auto" ? (
+              <option value="auto">✨ Automático (melhor disponível)</option>
+            ) : chatModels.filter((m) => m.provider === activeProvider).map((m) => {
+              const label = m.provider === "nvidia" ? m.label.replace(/^nvidia-nim:nvidia\//, "") : m.label;
+              const dot = m.status === "installed" ? "🟢" : m.status === "limited" ? "⏳" : "🟡";
+              const suffix = m.status === "limited" ? " · grátis com limite"
+                : m.cost === "paid" ? " · pago autorizado"
+                : m.cost === "free-tier" ? " · grátis com limite" : "";
+              return <option key={m.id} value={m.id} title={m.description}>{dot} {label}{suffix}</option>;
+            })}
+          </select>
+          {activeProvider !== "auto" && (
+            <span className="shrink-0 text-xs text-zinc-500" aria-live="polite">
+              {chatModels.filter((m) => m.provider === activeProvider).length} disponível(is)
+            </span>
+          )}
+        </div>
+        {activeProvider === "nvidia" && (
+          <p className="text-[11px] text-amber-700 dark:text-amber-300">
+            ⏳ NVIDIA Free Endpoint: gratuito com cotas para desenvolvimento/testes; não habilitado para uso comercial.
+          </p>
         )}
       </header>
 
