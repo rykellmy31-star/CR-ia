@@ -84,6 +84,35 @@ describe("Cloudflare FLUX REST", () => {
     expect(body.height).toBe(1024);
   });
 
+  it("accepts raw JPEG stream from Leonardo Phoenix instead of forcing JSON", async () => {
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(80)]);
+    const fetchFn = vi.fn(async () => new Response(jpeg, {
+      status: 200, headers: { "content-type": "image/jpeg" },
+    }));
+    const adapter = new CloudflareFluxRestAdapter("a".repeat(32), "secret", fetchFn as typeof fetch);
+    const result = await adapter.generate({ ...opts, model: CLOUDFLARE_PHOENIX_ID });
+    expect(result.mime).toBe("image/jpeg");
+    expect(Buffer.from(result.data).equals(jpeg)).toBe(true);
+  });
+
+  it("accepts raw PNG even if proxy labels it octet-stream", async () => {
+    const png = Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), Buffer.alloc(80)]);
+    const fetchFn = vi.fn(async () => new Response(png, {
+      status: 200, headers: { "content-type": "application/octet-stream" },
+    }));
+    const adapter = new CloudflareFluxRestAdapter("a".repeat(32), "secret", fetchFn as typeof fetch);
+    const result = await adapter.generate({ ...opts, model: CLOUDFLARE_PHOENIX_ID });
+    expect(result.mime).toBe("image/png");
+  });
+
+  it("rejects non-image binary safely", async () => {
+    const adapter = new CloudflareFluxRestAdapter("a".repeat(32), "secret", async () => new Response("not an image", {
+      status: 200, headers: { "content-type": "image/jpeg" },
+    }));
+    await expect(adapter.generate({ ...opts, model: CLOUDFLARE_PHOENIX_ID }))
+      .rejects.toThrow("dados inválidos");
+  });
+
   it("refuses API limits without silently falling back to paid inference", async () => {
     const adapter = new CloudflareFluxRestAdapter("a".repeat(32), "secret", async () => new Response("", { status: 429 }));
     await expect(adapter.generate(opts)).rejects.toThrow("franquia");

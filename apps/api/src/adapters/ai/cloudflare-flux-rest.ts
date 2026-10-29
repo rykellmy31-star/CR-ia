@@ -82,13 +82,48 @@ export class CloudflareFluxRestAdapter implements ImageAdapter {
     if (response.status === 401 || response.status === 403) {
       throw new Error("Cloudflare recusou a autenticação ou a permissão Workers AI.");
     }
-    if (!response.ok) throw new Error(`Cloudflare ${phoenix ? "Leonardo Phoenix" : klein ? "FLUX.2 Klein" : "FLUX.1 Schnell"} indisponível (HTTP ${response.status}).`);
-
-    const json = await response.json() as { success?: boolean; result?: { image?: string } };
-    if (!json.success || typeof json.result?.image !== "string") {
-      throw new Error("Cloudflare não retornou uma imagem válida.");
+    if (!response.ok) {
+      // Do not expose upstream response bodies (which might contain user prompts).
+      throw new Error(`Cloudflare ${phoenix ? "Leonardo Phoenix" : klein ? "FLUX.2 Klein" : "FLUX.1 Schnell"} indisponível (HTTP ${response.status}).`);
     }
-    const img = validateImageBytes(json.result.image);
+
+    // Some Cloudflare image models (including Leonardo Phoenix) return JPEG
+    // bytes directly, rather than the JSON { result: { image: base64 } }
+    // envelope used by FLUX.1 Schnell. Detect by content *and* magic bytes,
+    // because upstream proxies do not always preserve Content-Type.
+    const declaredSize = Number(response.headers.get("content-length") || "0");
+    const maxBytes = 32 * 1024 * 1024;
+    if (declaredSize > maxBytes) throw new Error("Imagem da Cloudflare excedeu o tamanho máximo permitido.");
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > maxBytes) throw new Error("Imagem da Cloudflare excedeu o tamanho máximo permitido.");
+
+    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    const png = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    if (jpeg || png || contentType.startsWith("image/")) {
+      // Check magic bytes rather than trusting a header alone.
+      if (!jpeg && !png) throw new Error("Cloudflare retornou dados inválidos em vez de imagem.");
+      return {
+        data: bytes, mime: jpeg ? "image/jpeg" : "image/png",
+        model: opts.model, paid: false,
+      };
+    }
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      throw new Error("Cloudflare retornou resposta não reconhecida em vez de imagem.");
+    }
+    const envelope = payload as { success?: boolean; result?: { image?: string } | string; image?: string };
+    const encoded = typeof envelope.result === "string"
+      ? envelope.result
+      : typeof envelope.result?.image === "string"
+        ? envelope.result.image : envelope.image;
+    if (envelope.success === false || typeof encoded !== "string") {
+      throw new Error("Cloudflare não retornou uma imagem válida no JSON.");
+    }
+    const img = validateImageBytes(encoded);
     if (img.mime !== "image/jpeg" && img.mime !== "image/png") throw new Error("Formato retornado não suportado.");
     return { data: img.bytes, mime: img.mime, model: opts.model, paid: false };
   }
