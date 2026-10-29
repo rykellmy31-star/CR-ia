@@ -28,8 +28,8 @@ describe("Cloudflare FLUX REST", () => {
     expect(result.data.length).toBe(64);
     expect(result.paid).toBe(false);
     const [, init] = fetchFn.mock.calls[0];
-    expect(init.headers.Authorization).toBe("Bearer secret");
-    expect(JSON.parse(init.body).steps).toBe(4);
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer secret");
+    expect(JSON.parse(String(init?.body)).steps).toBe(4);
   });
 
   it("refuses API limits without silently falling back to paid inference", async () => {
