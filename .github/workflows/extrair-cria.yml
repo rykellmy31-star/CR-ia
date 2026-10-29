@@ -78,6 +78,8 @@ jobs:
       - name: Publicar codigo somente se os testes passarem
         run: |
           rm -f CR-IA-GitHub-Menu-NVIDIA-FreeEndpoints-v3-PREVIEW.zip
+          # O GitHub Actions nao pode publicar novos workflows com o token da execucao.
+          rm -f .github/workflows/verificar.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
