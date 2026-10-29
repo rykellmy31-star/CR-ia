@@ -1,0 +1,86 @@
+name: Extrair e validar codigo CR IA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'CR-IA-GitHub-Menu-NVIDIA-FreeEndpoints-v3-PREVIEW.zip'
+      - '.github/workflows/extrair-cria.yml'
+permissions:
+  contents: write
+
+jobs:
+  preparar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Conferir hash do ZIP enviado
+        run: |
+          echo 'ea397ebffb5d120b9176de3d43e45cb5779e277072293dad81bd8f5560747f5e  CR-IA-GitHub-Menu-NVIDIA-FreeEndpoints-v3-PREVIEW.zip' | sha256sum -c -
+      - name: Extrair ZIP com verificacoes de segurança
+        run: |
+          python3 - <<'PY'
+          import pathlib, zipfile, stat, re
+          base=pathlib.Path.cwd().resolve()
+          archive=base/'CR-IA-GitHub-Menu-NVIDIA-FreeEndpoints-v3-PREVIEW.zip'
+          with zipfile.ZipFile(archive) as z:
+              files=z.infolist()
+              assert len(files)==233, f'Quantidade inesperada de arquivos: {len(files)}'
+              assert sum(f.file_size for f in files)<20_000_000
+              for info in files:
+                  p=pathlib.PurePosixPath(info.filename)
+                  if p.is_absolute() or '..' in p.parts or '\\' in info.filename or not p.parts:
+                      raise RuntimeError(f'Caminho invalido: {info.filename}')
+                  if info.is_dir():
+                      continue
+                  mode=info.external_attr >> 16
+                  if stat.S_ISLNK(mode) or (stat.S_IFMT(mode) not in (0,stat.S_IFREG)):
+                      raise RuntimeError(f'Tipo proibido: {info.filename}')
+                  if p.name=='.env' or p.name=='.dev.vars' or p.name.endswith(('.key','.pem','.p12','.pfx','.minisig','.dump','.db','.sqlite')):
+                      raise RuntimeError(f'Arquivo sensivel proibido: {info.filename}')
+                  data=z.read(info)
+                  if re.search(rb'(gh[pousr]_[A-Za-z0-9]{25,}|nvapi-[A-Za-z0-9_-]{25,}|sk-or-v1-[A-Fa-f0-9]{20,}|AKIA[0-9A-Z]{16})',data):
+                      raise RuntimeError(f'Segredo potencial encontrado: {info.filename}')
+                  dest=base.joinpath(*p.parts)
+                  dest.parent.mkdir(parents=True, exist_ok=True)
+                  if dest.exists():
+                      raise RuntimeError(f'Arquivo ja existente: {dest.relative_to(base)}')
+                  dest.write_bytes(data)
+          print('Extracao validada:',len(files),'entradas')
+          PY
+      - name: Checar arquivos essenciais
+        run: |
+          test -f package.json
+          test -f package-lock.json
+          test -f docker-compose.yml
+          test -f scripts/bootstrap-github.sh
+          test -f scripts/atualizar-github.sh
+          test -f scripts/cria-menu.sh
+          test -f apps/api/src/adapters/ai/nvidia-nim.ts
+          test -f apps/api/src/adapters/ai/nvidia-image.ts
+          bash -n scripts/bootstrap-github.sh scripts/atualizar-github.sh scripts/cria-menu.sh
+          python3 -c "import ast; ast.parse(open('scripts/cria-generate-env.py').read())"
+      - name: Preparar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+      - name: Rodar testes direcionados
+        run: node --test scripts/bootstrap-github.test.mjs scripts/cria-menu.test.mjs scripts/backup-sh.test.mjs
+      - name: Compilar
+        run: npm run build
+      - name: Publicar codigo somente se os testes passarem
+        run: |
+          rm -f CR-IA-GitHub-Menu-NVIDIA-FreeEndpoints-v3-PREVIEW.zip
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'CR IA: publicar codigo extraido e validado'
+          git push origin HEAD:main
