@@ -9,10 +9,14 @@ INST=/opt/cr-ia/installer
  echo 'Arquivos do menu ausentes em /opt/cr-ia/app/scripts.' >&2; exit 1;
 }
 mkdir -p "$INST"
-chmod 750 "$INST"
+chmod 755 "$INST" # usuario ubuntu precisa atravessar diretorio para executar o menu
 for script in cria-menu.sh atualizar-github.sh atualizar-instalador.sh; do
   bash -n "$APP/scripts/$script"
-  install -m 750 "$APP/scripts/$script" "$INST/$script"
+  if [[ "$script" == "cria-menu.sh" ]]; then
+    install -m 755 "$APP/scripts/$script" "$INST/$script"
+  else
+    install -m 750 "$APP/scripts/$script" "$INST/$script"
+  fi
 done
 ln -sfn "$INST/cria-menu.sh" /usr/local/bin/menu
 printf 'Menu instalado. No SSH, digite: menu\n'
