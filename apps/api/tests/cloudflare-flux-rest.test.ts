@@ -19,7 +19,7 @@ describe("Cloudflare FLUX REST", () => {
 
   it("sends authenticated JSON, decodes returned image bytes", async () => {
     const image = Buffer.concat([Buffer.from([0xff,0xd8,0xff,0xe0]), Buffer.alloc(60)]);
-    const fetchFn = vi.fn(async () => new Response(JSON.stringify({
+    const fetchFn = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({
       success: true, result: { image: image.toString("base64") },
     }), { status: 200, headers: { "content-type": "application/json" } }));
     const adapter = new CloudflareFluxRestAdapter("a".repeat(32), "secret", fetchFn as typeof fetch);
