@@ -25,7 +25,7 @@ import { OpenAICompatTextAdapter, type KeyedAdapter } from "./openai-compatible.
 import { OpenRouterImageAdapter } from "./openrouter-image.js";
 import { NvidiaNimTextAdapter } from "./nvidia-nim.js";
 import { NvidiaCosmosImageAdapter, NVIDIA_COSMOS_IMAGE_ID } from "./nvidia-image.js";
-import { CloudflareFluxRestAdapter, CLOUDFLARE_FLUX_REST_ID, CLOUDFLARE_FLUX_KLEIN_ID } from "./cloudflare-flux-rest.js";
+import { CloudflareFluxRestAdapter, CLOUDFLARE_FLUX_REST_ID, CLOUDFLARE_FLUX_KLEIN_ID, CLOUDFLARE_PHOENIX_ID } from "./cloudflare-flux-rest.js";
 import { OR_DEFAULT_REFERER, type OrCatalogEntry } from "../../services/openrouter.js";
 import { AnthropicTextAdapter } from "./anthropic.js";
 import { GoogleTextAdapter } from "./google.js";
